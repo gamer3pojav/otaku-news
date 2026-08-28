@@ -1643,3 +1643,81 @@ html { -webkit-overflow-scrolling: touch; }
 @media (max-width: 560px) {
   .float-support { bottom: 14px; right: 14px; padding: 11px 15px; font-size: 12.5px; }
 }
+
+/* ---------- Watchlist button ---------- */
+.wl-wrap { position: relative; display: inline-block; margin-top: 12px; }
+.wl-btn {
+  padding: 9px 18px; border-radius: 100px; cursor: pointer;
+  border: 1.5px solid var(--accent); background: var(--accent-soft);
+  color: var(--accent); font-weight: 700; font-size: 12.5px;
+  transition: transform .18s cubic-bezier(.22,1,.36,1), background .15s;
+}
+.wl-btn:hover { transform: translateY(-1px); }
+.wl-btn.on { background: linear-gradient(100deg, var(--accent), #ff8a5c); color: #fff; border-color: transparent; }
+.wl-menu {
+  display: none; position: absolute; top: calc(100% + 6px); left: 0; z-index: 60;
+  background: var(--card); border: 1.5px solid var(--line); border-radius: 12px;
+  padding: 6px; min-width: 160px; box-shadow: 0 14px 40px rgba(0,0,0,.18);
+}
+.wl-wrap.open .wl-menu { display: block; }
+.wl-opt {
+  display: block; width: 100%; text-align: left; cursor: pointer;
+  padding: 9px 12px; border: none; background: none; border-radius: 8px;
+  font-size: 13px; font-weight: 600; color: var(--ink-soft);
+}
+.wl-opt:hover { background: var(--accent-soft); color: var(--accent); }
+.wl-opt.cur { color: var(--accent); font-weight: 800; }
+.wl-remove { color: var(--ink-faint); border-top: 1px solid var(--line); border-radius: 0 0 8px 8px; }
+
+/* ---------- My List panel ---------- */
+.mylist-overlay {
+  position: fixed; inset: 0; z-index: 300; background: rgba(10,10,14,.6);
+  backdrop-filter: blur(6px); display: none; place-items: center; padding: 18px;
+}
+.mylist-overlay.open { display: grid; }
+.mylist-modal {
+  width: min(640px, 94vw); max-height: 84vh; overflow-y: auto;
+  background: var(--card); border: 1.5px solid var(--line);
+  border-radius: 18px; padding: 24px; position: relative;
+}
+.mylist-close {
+  position: absolute; top: 14px; right: 16px; border: none; background: var(--paper);
+  cursor: pointer; font-size: 16px; color: var(--ink-faint);
+  width: 32px; height: 32px; border-radius: 50%;
+}
+.mylist-modal h3 { font-size: 19px; letter-spacing: -.4px; }
+.mylist-label {
+  font-family: var(--mono); font-size: 10px; letter-spacing: 2px;
+  text-transform: uppercase; color: var(--accent); margin: 18px 0 8px;
+}
+.mylist-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 10px; }
+.mylist-item { text-align: center; }
+.mylist-item img { width: 100%; aspect-ratio: 3/4.2; object-fit: cover; border-radius: 8px; border: 1.5px solid var(--line); }
+.mylist-item span { display: block; font-size: 10.5px; font-weight: 600; margin-top: 5px; color: var(--ink); line-height: 1.3; }
+.mylist-empty, .cm-empty { color: var(--ink-faint); font-size: 13px; padding: 12px 0; }
+#user-avatar, #user-name { cursor: pointer; }
+
+/* ---------- Comments ---------- */
+.cm-list { display: flex; flex-direction: column; gap: 12px; max-width: 660px; }
+.cm-item { display: flex; gap: 10px; }
+.cm-avatar {
+  width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
+  background: linear-gradient(135deg, var(--accent), #ff8a5c);
+  color: #fff; display: grid; place-items: center; font-weight: 800; font-size: 13px;
+}
+.cm-head { font-size: 12.5px; }
+.cm-head span { font-family: var(--mono); font-size: 9.5px; color: var(--ink-faint); margin-left: 6px; }
+.cm-item p { font-size: 13px; color: var(--ink-soft); margin-top: 2px; line-height: 1.55; }
+.cm-form { display: flex; gap: 8px; margin-top: 14px; max-width: 660px; }
+.cm-form input {
+  flex: 1; padding: 10px 14px; border-radius: 10px;
+  border: 1.5px solid var(--line); background: var(--card); color: var(--ink);
+  font-size: 13px; outline: none;
+}
+.cm-form input:focus { border-color: var(--accent); }
+.cm-form button {
+  padding: 10px 20px; border: none; border-radius: 10px; cursor: pointer;
+  background: linear-gradient(100deg, var(--accent), #ff8a5c);
+  color: #fff; font-weight: 700; font-size: 13px;
+}
+.cm-login { font-size: 12.5px; color: var(--ink-faint); margin-top: 10px; }

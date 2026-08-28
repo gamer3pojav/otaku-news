@@ -10,124 +10,118 @@
 <title>Loading… — Otaku News</title>
 <link rel="stylesheet" href="style.css">
 <style>
-  /* ---------- Anime detail page ---------- */
-  .detail-wrap { max-width: 1080px; margin: 0 auto; padding: 28px 24px 70px; }
+  /* ---------- Anime detail page (Crunchyroll-style) ---------- */
+  .detail-wrap { max-width: 1080px; margin: 0 auto; padding: 0 0 64px; }
   .back-link {
     display: inline-flex; align-items: center; gap: 8px;
-    font-size: 14px; font-weight: 600; color: var(--ink-soft);
-    margin-bottom: 20px; transition: color .15s;
+    font-size: 13px; font-weight: 600; color: var(--ink-soft);
+    margin: 14px 20px; transition: color .15s;
   }
   .back-link:hover { color: var(--accent); }
 
-  .detail-banner {
-    width: 100%; height: 150px; border-radius: 14px;
-    border: 1.5px solid var(--line);
-    object-fit: cover; display: none;
+  .cr-hero {
+    position: relative; overflow: hidden;
+    background-size: cover; background-position: center;
+    border-radius: 0 0 22px 22px;
   }
-  .detail-grid {
-    display: grid; grid-template-columns: 210px 1fr; gap: 28px;
-    margin-top: 22px;
+  .cr-hero::before {
+    content: ""; position: absolute; inset: 0;
+    background: rgba(16, 12, 14, .78);
+    backdrop-filter: blur(14px);
   }
-  .detail-poster {
-    width: 100%; border-radius: 12px; border: 1.5px solid var(--line);
-    box-shadow: 0 10px 26px rgba(0,0,0,.10);
+  .cr-hero-inner {
+    position: relative; z-index: 2;
+    display: flex; gap: clamp(14px, 3vw, 28px);
+    padding: clamp(18px, 4vw, 36px) clamp(16px, 3vw, 32px);
+    align-items: center;
   }
-  .detail-side { display: flex; flex-direction: column; gap: 12px; }
-  .detail-actions a {
-    display: block; text-align: center; padding: 10px;
-    border-radius: 10px; font-weight: 700; font-size: 13px;
-    background: linear-gradient(100deg, var(--accent), #e0455a); color: #fff;
-    transition: filter .15s, transform .18s cubic-bezier(.22,1,.36,1);
+  .cr-poster {
+    width: clamp(96px, 17vw, 170px); flex-shrink: 0;
+    border-radius: 10px; box-shadow: 0 16px 40px rgba(0,0,0,.5);
   }
-  .detail-actions a:hover { filter: brightness(1.08); transform: translateY(-1px); }
+  .cr-info { min-width: 0; color: #fff; }
+  .cr-title {
+    font-size: clamp(18px, 3.4vw, 32px); font-weight: 800;
+    letter-spacing: -.6px; line-height: 1.12; color: #fff;
+  }
+  .cr-native { font-family: var(--mono); font-size: clamp(9px, 1.2vw, 11.5px); color: rgba(255,255,255,.55); margin-top: 5px; }
+  .cr-score-row { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
+  .cr-stars { color: #ffb02e; font-size: clamp(12px, 1.6vw, 15px); letter-spacing: 1px; }
+  .cr-score-num { font-weight: 800; font-size: clamp(12.5px, 1.6vw, 15px); color: #fff; }
+  .cr-score-cnt { font-family: var(--mono); font-size: clamp(9px, 1.1vw, 10.5px); color: rgba(255,255,255,.5); }
+  .cr-meta-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+  .cr-pill {
+    font-family: var(--mono); font-size: clamp(8.5px, 1vw, 10px); font-weight: 700;
+    letter-spacing: .5px; text-transform: uppercase;
+    color: rgba(255,255,255,.85); border: 1px solid rgba(255,255,255,.25);
+    border-radius: 100px; padding: 4px 11px;
+  }
+  .cr-cta-row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; align-items: center; }
+  .cr-cta {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: linear-gradient(100deg, var(--accent), #ff8a5c);
+    color: #fff; font-weight: 800; font-size: clamp(12px, 1.5vw, 14px);
+    padding: 11px 22px; border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(224,69,90,.4);
+    transition: transform .18s cubic-bezier(.22,1,.36,1), filter .15s;
+  }
+  .cr-cta:hover { transform: translateY(-2px); filter: brightness(1.07); }
+  .cr-hero .wl-wrap { margin-top: 0; }
+  .cr-hero .wl-btn {
+    background: rgba(255,255,255,.1); border-color: rgba(255,255,255,.35); color: #fff;
+    padding: 11px 20px; border-radius: 8px; font-size: clamp(12px, 1.5vw, 13.5px);
+  }
+  .cr-hero .wl-btn.on { background: linear-gradient(100deg, var(--accent), #ff8a5c); border-color: transparent; }
 
-  .stat-panel {
-    border: 1.5px solid var(--line); border-radius: 12px;
-    background: var(--card); padding: 13px; display: flex; flex-direction: column; gap: 8px;
+  .cr-body { padding: 22px clamp(16px, 3vw, 32px) 0; }
+  .detail-section-label {
+    font-family: var(--mono); font-size: clamp(9px, 1.1vw, 10.5px); letter-spacing: 2px;
+    text-transform: uppercase; color: var(--ink-faint);
+    margin: 24px 0 11px; display: flex; align-items: center; gap: 8px;
   }
-  .stat-row { display: flex; justify-content: space-between; font-size: 12.5px; gap: 10px; }
-  .stat-row .k { color: var(--ink-faint); font-family: var(--mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: .6px; }
-  .stat-row .v { font-weight: 700; text-align: right; }
-
-  .detail-title { font-size: clamp(22px, 3vw, 32px); letter-spacing: -0.7px; line-height: 1.15; font-weight: 800; }
-  .detail-native { font-family: var(--mono); font-size: 12px; color: var(--ink-faint); margin-top: 5px; }
-  .detail-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 13px; }
-  .detail-desc { margin-top: 18px; font-size: 14.5px; line-height: 1.7; color: var(--ink-soft); max-width: 640px; }
+  .detail-section-label::before {
+    content: ""; width: 7px; height: 7px; border-radius: 2px;
+    background: var(--accent); transform: rotate(45deg); flex-shrink: 0;
+  }
+  .detail-desc { font-size: clamp(13px, 1.5vw, 14.5px); line-height: 1.7; color: var(--ink-soft); max-width: 720px; }
   .detail-desc p + p { margin-top: 10px; }
 
+  .cr-details {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1px; background: var(--line); border: 1.5px solid var(--line);
+    border-radius: 12px; overflow: hidden; max-width: 720px;
+  }
+  .cr-cell { background: var(--card); padding: 11px 14px; }
+  .cr-cell .k { font-family: var(--mono); font-size: 8.5px; letter-spacing: 1px; text-transform: uppercase; color: var(--ink-faint); }
+  .cr-cell .v { font-weight: 700; font-size: clamp(11px, 1.3vw, 12.5px); margin-top: 3px; color: var(--ink); }
+
   .next-ep {
-    margin-top: 18px; display: inline-flex; align-items: center; gap: 9px;
+    display: inline-flex; align-items: center; gap: 8px;
     border: 1.5px solid var(--accent); background: var(--accent-soft);
-    border-radius: 100px; padding: 7px 15px;
-    font-family: var(--mono); font-size: 11.5px; font-weight: 700; color: var(--accent);
+    border-radius: 100px; padding: 6px 13px;
+    font-family: var(--mono); font-size: clamp(9px, 1.2vw, 11px); font-weight: 700; color: var(--accent);
   }
   .next-ep .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: pulse 1.6s infinite; }
 
-  .detail-section-label {
-    font-family: var(--mono); font-size: 11px; letter-spacing: 2px;
-    text-transform: uppercase; color: var(--ink-faint);
-    margin: 24px 0 10px;
-  }
-  .char-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 12px; max-width: 640px; }
+  .char-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 12px; max-width: 720px; }
   .char { text-align: center; }
   .char img {
-    width: 58px; height: 58px; border-radius: 50%; object-fit: cover;
-    border: 1.5px solid var(--line); margin: 0 auto 6px;
+    width: clamp(44px, 6vw, 58px); height: clamp(44px, 6vw, 58px);
+    border-radius: 50%; object-fit: cover;
+    border: 2px solid var(--line); margin: 0 auto 6px;
+    transition: transform .2s cubic-bezier(.22,1,.36,1), border-color .15s;
   }
-  .char .cname { font-size: 11.5px; font-weight: 600; line-height: 1.3; }
-
-  .trailer-btn {
-    display: inline-flex; align-items: center; gap: 8px;
-    border: 1.5px solid var(--line); border-radius: 10px;
-    background: var(--card); color: var(--ink);
-    padding: 10px 16px; font-weight: 700; font-size: 13px;
-    transition: border-color .15s, color .15s;
-  }
-  .trailer-btn:hover { border-color: var(--accent); color: var(--accent); }
-  .trailer-embed {
-    max-width: 640px; border-radius: 12px; overflow: hidden;
-    border: 1.5px solid var(--line); aspect-ratio: 16/9; background: #000;
-    position: relative; cursor: pointer;
-  }
-  .trailer-embed iframe, .trailer-embed img { width: 100%; height: 100%; display: block; object-fit: cover; }
-  .trailer-embed .play-btn {
-    position: absolute; inset: 0; display: grid; place-items: center;
-    font-size: 22px; color: #fff;
-    background: rgba(0,0,0,.25); transition: background .2s;
-  }
-  .trailer-embed .play-btn::before {
-    content: ""; position: absolute; width: 64px; height: 64px; border-radius: 50%;
-    background: var(--accent); z-index: -1;
-    box-shadow: 0 8px 24px rgba(224,69,90,.5);
-    transition: transform .2s cubic-bezier(.22,1,.36,1);
-  }
-  .trailer-embed:hover .play-btn { background: rgba(0,0,0,.1); }
-  .trailer-embed:hover .play-btn::before { transform: scale(1.1); }
+  .char:hover img { transform: scale(1.08); border-color: var(--accent); }
+  .char .cname { font-size: clamp(9px, 1.1vw, 10.5px); font-weight: 600; line-height: 1.3; }
 
   .detail-error { text-align: center; padding: 80px 20px; color: var(--ink-faint); font-family: var(--mono); }
-  .detail-skel { height: 420px; }
+  .detail-skel { height: 420px; margin: 16px; }
 
-  /* Tablet */
-  @media (max-width: 1000px) {
-    .detail-grid { grid-template-columns: 180px 1fr; gap: 22px; }
+  @media (max-width: 560px) {
+    .cr-cta-row .cr-cta, .cr-hero .wl-btn { padding: 9px 15px; }
+    .cr-details { grid-template-columns: repeat(2, 1fr); }
   }
-
-  /* Mobile: poster and stats sit side by side, compact */
-  @media (max-width: 760px) {
-    .detail-wrap { padding: 20px 16px 56px; }
-    .detail-banner { height: 100px; }
-    .detail-grid { grid-template-columns: 1fr; gap: 18px; margin-top: 16px; }
-    .detail-side { flex-direction: row; flex-wrap: wrap; align-items: flex-start; }
-    .detail-poster { width: 118px; flex-shrink: 0; }
-    .stat-panel { flex: 1; min-width: 170px; }
-    .detail-actions { width: 100%; }
-    .detail-actions a { padding: 9px; font-size: 12.5px; }
-    .detail-title { font-size: 21px; }
-    .detail-desc { font-size: 14px; }
-    .char-row { grid-template-columns: repeat(auto-fill, minmax(66px, 1fr)); }
-    .char img { width: 48px; height: 48px; }
-  }
-</style>
+  </style>
 </head>
 <body>
 
@@ -143,6 +137,7 @@
   </div>
 </nav>
 
+<script src="features.js"></script>
 <div class="detail-wrap">
   <a class="back-link" href="index.html#airing">← Back to Otaku News</a>
 
@@ -278,38 +273,60 @@
           <div class="cname">${esc(c.name.full)}</div>
         </div>`).join('');
 
+      const exactScore = (() => {
+        const d = m.stats && m.stats.scoreDistribution;
+        if (d && d.length) {
+          const t = d.reduce((s, x) => s + x.amount, 0);
+          if (t) return d.reduce((s, x) => s + x.score * x.amount, 0) / t / 10;
+        }
+        return m.averageScore ? m.averageScore / 10 : null;
+      })();
+      const stars = exactScore ? '★'.repeat(Math.round(exactScore / 2)) + '☆'.repeat(5 - Math.round(exactScore / 2)) : '';
+      const bg = m.bannerImage || m.coverImage.extraLarge || m.coverImage.large;
+      const firstStream = (m.externalLinks || []).find(l => l.type === 'STREAMING');
+
       box.innerHTML = `
-        ${m.bannerImage ? `<img class="detail-banner" src="${m.bannerImage}" alt="" style="display:block">` : ''}
-        <div class="detail-grid">
-          <div class="detail-side">
-            <img class="detail-poster" src="${m.coverImage.extraLarge || m.coverImage.large}" alt="${esc(title)} poster">
-            <div class="stat-panel">
-              <div class="stat-row"><span class="k">Score</span><span class="v">${(() => { const d = m.stats && m.stats.scoreDistribution; if (d && d.length) { const t = d.reduce((s,x)=>s+x.amount,0); if (t) return (d.reduce((s,x)=>s+x.score*x.amount,0)/t/10).toFixed(2) + ' / 10'; } return m.averageScore ? (m.averageScore/10).toFixed(1) + ' / 10' : '—'; })()}</span></div>
-              <div class="stat-row"><span class="k">Fans</span><span class="v">${m.popularity ? m.popularity.toLocaleString() : '—'}</span></div>
-              <div class="stat-row"><span class="k">Favorites</span><span class="v">${m.favourites ? m.favourites.toLocaleString() : '—'}</span></div>
-              <div class="stat-row"><span class="k">Format</span><span class="v">${(m.format || '—').replace(/_/g, ' ')}</span></div>
-              <div class="stat-row"><span class="k">Episodes</span><span class="v">${m.episodes || (next ? next.episode - 1 + '+' : 'Ongoing')}</span></div>
-              <div class="stat-row"><span class="k">Runtime</span><span class="v">${m.duration ? m.duration + ' min' : '—'}</span></div>
-              <div class="stat-row"><span class="k">Season</span><span class="v">${m.season ? m.season + ' ' + m.seasonYear : '—'}</span></div>
-              <div class="stat-row"><span class="k">Premiered</span><span class="v">${date}</span></div>
-              <div class="stat-row"><span class="k">Source</span><span class="v">${(m.source || '—').replace(/_/g, ' ')}</span></div>
-              <div class="stat-row"><span class="k">Studio</span><span class="v">${esc((m.studios.nodes[0] || {}).name || '—')}</span></div>
+        <div class="cr-hero" style="background-image:url('${bg}')">
+          <div class="cr-hero-inner">
+            <img class="cr-poster" src="${m.coverImage.extraLarge || m.coverImage.large}" alt="${esc(title)} poster">
+            <div class="cr-info">
+              <h1 class="cr-title">${esc(title)}</h1>
+              ${m.title.native ? `<div class="cr-native">${esc(m.title.native)}</div>` : ''}
+              ${exactScore ? `<div class="cr-score-row">
+                <span class="cr-stars">${stars}</span>
+                <span class="cr-score-num">${exactScore.toFixed(2)}</span>
+                <span class="cr-score-cnt">${m.popularity ? '(' + m.popularity.toLocaleString() + ' fans)' : ''}</span>
+              </div>` : ''}
+              <div class="cr-meta-row">
+                ${[(m.format || '').replace(/_/g, ' '), m.episodes ? m.episodes + ' EPS' : null, m.season ? m.season + ' ' + m.seasonYear : null, (m.studios.nodes[0] || {}).name].filter(Boolean).map(x => `<span class="cr-pill">${esc(String(x))}</span>`).join('')}
+              </div>
+              <div class="cr-cta-row">
+                ${firstStream ? `<a class="cr-cta" href="${firstStream.url}" target="_blank" rel="noopener">▶ Watch on ${esc(firstStream.site)}</a>` : `<a class="cr-cta" href="${m.siteUrl}" target="_blank" rel="noopener">View on AniList</a>`}
+                ${window.otakuWLButton ? window.otakuWLButton(id, title, m.coverImage.large) : ''}
+              </div>
             </div>
-            <div class="detail-actions"><a href="${m.siteUrl}" target="_blank" rel="noopener">View on AniList ↗</a></div>
           </div>
-          <div>
-            <h1 class="detail-title">${esc(title)}</h1>
-            ${m.title.native ? `<div class="detail-native">${esc(m.title.native)}${m.title.romaji && m.title.romaji !== title ? ' · ' + esc(m.title.romaji) : ''}</div>` : ''}
-            ${creator ? `<div class="review-author" style="margin-top:10px;border-top:none;padding-top:0"><span class="author-tag">AUTHOR</span>${esc(creator)}</div>` : ''}
-            <div class="detail-chips">${(m.genres || []).map(g => `<span class="genre-tag">${g}</span>`).join('')}</div>
-            ${nextHtml}
-            ${watch}
-            <div class="detail-section-label">あらすじ — Synopsis</div>
-            <div class="detail-desc">${paras}</div>
-            ${relatedHtml}
-            ${chars ? `<div class="detail-section-label">キャラクター — Characters</div><div class="char-row">${chars}</div>` : ''}
-            <div class="detail-section-label">予告編 — Trailer</div>${trailer}
+        </div>
+        <div class="cr-body">
+          ${creator ? `<div class="review-author" style="border-top:none;padding-top:0;margin-top:0"><span class="author-tag">AUTHOR</span>${esc(creator)}</div>` : ''}
+          <div class="detail-chips" style="margin-top:10px">${(m.genres || []).map(g => `<span class="genre-tag">${g}</span>`).join('')}</div>
+          ${nextHtml ? `<div style="margin-top:14px">${nextHtml}</div>` : ''}
+          ${watch}
+          <div class="detail-section-label">あらすじ — Synopsis</div>
+          <div class="detail-desc">${paras}</div>
+          <div class="detail-section-label">詳細 — Details</div>
+          <div class="cr-details">
+            <div class="cr-cell"><div class="k">Favorites</div><div class="v">${m.favourites ? m.favourites.toLocaleString() : '—'}</div></div>
+            <div class="cr-cell"><div class="k">Runtime</div><div class="v">${m.duration ? m.duration + ' min' : '—'}</div></div>
+            <div class="cr-cell"><div class="k">Premiered</div><div class="v">${date}</div></div>
+            <div class="cr-cell"><div class="k">Source</div><div class="v">${(m.source || '—').replace(/_/g, ' ')}</div></div>
+            <div class="cr-cell"><div class="k">Status</div><div class="v">${(m.status || '—').replace(/_/g, ' ')}</div></div>
+            <div class="cr-cell"><div class="k">AniList</div><div class="v"><a href="${m.siteUrl}" target="_blank" rel="noopener" style="color:var(--accent)">Open ↗</a></div></div>
           </div>
+          ${relatedHtml}
+          ${chars ? `<div class="detail-section-label">キャラクター — Characters</div><div class="char-row">${chars}</div>` : ''}
+          <div class="detail-section-label">予告編 — Trailer</div>${trailer}
+          ${window.otakuComments ? window.otakuComments(id) : ''}
         </div>`;
       expandFranchise(m);
     })
@@ -375,5 +392,5 @@
 </script>
 
 <script src="lightbox.js" defer></script>
-</body>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a32048557ad03c46',t:'MTc4Nzg4ODMwMA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
