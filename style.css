@@ -1589,3 +1589,57 @@ body.lb-locked { overflow: hidden; }
 html { -webkit-overflow-scrolling: touch; }
 
 /* Mobile low-end mode still wins: its rules come later in cascade for <=860px where set */
+
+/* ---------- Support / Ko-fi ---------- */
+.support-btn {
+  display: block; text-align: center; padding: 11px;
+  border-radius: 10px; font-weight: 700; font-size: 13.5px;
+  color: #fff; background: linear-gradient(100deg, #29abe0, #1f8fc4);
+  margin-top: 6px;
+  transition: filter .15s, transform .18s cubic-bezier(.22,1,.36,1);
+}
+.support-btn:hover { filter: brightness(1.08); transform: translateY(-1px); }
+.support-card {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 20px; flex-wrap: wrap;
+  background: var(--card); border: 1.5px solid var(--line);
+  border-radius: 18px; padding: 26px 30px;
+}
+.support-text h3 { font-size: 19px; letter-spacing: -.4px; margin-bottom: 6px; }
+.support-text p { font-size: 13px; color: var(--ink-soft); max-width: 520px; line-height: 1.6; }
+.support-cta {
+  flex-shrink: 0; padding: 13px 26px; border-radius: 100px;
+  font-weight: 800; font-size: 14.5px; color: #fff;
+  background: linear-gradient(100deg, #29abe0, #1f8fc4);
+  box-shadow: 0 6px 20px rgba(41,171,224,.35);
+  transition: transform .2s cubic-bezier(.22,1,.36,1), filter .15s;
+}
+.support-cta:hover { transform: translateY(-2px); filter: brightness(1.06); }
+.support-cta:active { transform: scale(.97); }
+@media (max-width: 640px) {
+  .support-card { padding: 20px; }
+  .support-cta { width: 100%; text-align: center; }
+}
+
+/* ---------- Auth note ---------- */
+.auth-note {
+  margin-top: 10px; text-align: center;
+  font-family: var(--mono); font-size: 9.5px; color: var(--ink-faint);
+}
+
+/* ---------- Floating support button ---------- */
+.float-support {
+  position: fixed; bottom: 20px; right: 20px; z-index: 80;
+  display: flex; align-items: center; gap: 7px;
+  background: linear-gradient(100deg, var(--accent), #ff8a5c);
+  color: #fff; font-weight: 800; font-size: 13.5px;
+  padding: 12px 18px; border-radius: 100px;
+  box-shadow: 0 8px 26px rgba(224,69,90,.45);
+  transition: transform .2s cubic-bezier(.34,1.56,.64,1), box-shadow .2s;
+}
+.float-support:hover { transform: translateY(-3px) scale(1.04); box-shadow: 0 12px 32px rgba(224,69,90,.55); }
+.float-support:active { transform: scale(.95); }
+.fs-icon { font-size: 15px; }
+@media (max-width: 560px) {
+  .float-support { bottom: 14px; right: 14px; padding: 11px 15px; font-size: 12.5px; }
+}

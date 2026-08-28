@@ -328,31 +328,58 @@ function creatorOf(m) {
     if (e.key === 'Escape' && modal.classList.contains('open')) closeModal();
   });
 
+  // ---- Local accounts (no server needed; stored in this browser) ----
+  async function hashPw(pw, salt) {
+    const data = new TextEncoder().encode(salt + ':' + pw);
+    const buf = await crypto.subtle.digest('SHA-256', data);
+    return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+  function localUsers() {
+    try { return JSON.parse(localStorage.getItem('otaku-users') || '{}'); } catch (e) { return {}; }
+  }
+  async function localAuth(mode, body) {
+    const users = localUsers();
+    const uname = (body.username || '').trim();
+    const key = uname.toLowerCase();
+    if (!/^[A-Za-z0-9_]{3,20}$/.test(uname)) throw new Error('Username must be 3-20 chars (letters, numbers, _).');
+    if ((body.password || '').length < 8) throw new Error('Password must be at least 8 characters.');
+    if (mode === 'signup') {
+      if (users[key]) throw new Error('Username already taken on this device.');
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(body.email || '')) throw new Error("That email doesn't look right.");
+      const salt = Math.random().toString(36).slice(2, 12);
+      users[key] = { username: uname, email: body.email, salt, hash: await hashPw(body.password, salt) };
+      localStorage.setItem('otaku-users', JSON.stringify(users));
+    } else {
+      const u = users[key];
+      if (!u) throw new Error('No account with that username on this device. Sign up first!');
+      if (await hashPw(body.password, u.salt) !== u.hash) throw new Error('Wrong password.');
+    }
+    localStorage.setItem('otaku-session', users[key].username);
+    return users[key].username;
+  }
+
   form.addEventListener('submit', async e => {
     e.preventDefault();
     errBox.style.display = 'none';
     const body = { username: userInput.value, password: passInput.value };
     if (mode === 'signup') body.email = emailInput.value;
     try {
-      let res;
+      let user = null;
       try {
-        res = await fetch('/api/' + mode, {
+        const res = await fetch('/api/' + mode, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body)
         });
-      } catch (netErr) {
-        throw new Error('Accounts need the Otaku News server. Run "python3 server.py" and open localhost:8000.');
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Something went wrong.');
+        user = data.user;
+      } catch (err) {
+        // Backend error with a real message? show it. Otherwise: no backend -> local accounts.
+        if (err && err.message && !/failed|NetworkError|Unexpected|not valid JSON|fetch/i.test(err.message)) throw err;
+        user = await localAuth(mode, body);
       }
-      let data;
-      try {
-        data = await res.json();
-      } catch (parseErr) {
-        // static host answered (e.g. "Method Not Allowed") — no backend here
-        throw new Error('Accounts need the Otaku News server. Run "python3 server.py" and open localhost:8000.');
-      }
-      if (!res.ok) throw new Error(data.error || 'Something went wrong.');
-      showLoggedIn(data.user);
+      showLoggedIn(user);
       closeModal();
     } catch (err) {
       errBox.textContent = err.message;
@@ -362,14 +389,23 @@ function creatorOf(m) {
 
   logoutBtn.addEventListener('click', async () => {
     try { await fetch('/api/logout', { method: 'POST' }); } catch (e) {}
+    try { localStorage.removeItem('otaku-session'); } catch (e) {}
     showLoggedOut();
   });
 
-  // Restore session on page load
+  // Restore session on page load: backend session OR device-local session
   fetch('/api/me')
-    .then(r => r.json())
-    .then(d => { if (d.user) showLoggedIn(d.user); })
-    .catch(() => {}); // static hosting (no backend) — just stay logged out
+    .then(r => { if (!r.ok) throw 0; return r.json(); })
+    .then(d => {
+      if (d.user) showLoggedIn(d.user);
+      else throw 0;
+    })
+    .catch(() => {
+      try {
+        const local = localStorage.getItem('otaku-session');
+        if (local) showLoggedIn(local);
+      } catch (e) {}
+    });
 })();
 
 // ---------- Hamburger menu ----------
@@ -874,6 +910,7 @@ document.querySelectorAll('.news-item[data-expand]').forEach(item => {
       </div>`;
     if (window.__feedTicker) window.__feedTicker(items);
     if (window.__feedEditorial) window.__feedEditorial(items);
+    if (window.__feedFeature) window.__feedFeature(items);
     statusEl.innerHTML = `Live · ${items.length} headlines · ${via} · refreshes every 24h · <span id="wire-clock"></span>`;
     // Real-time news hour clock (IST, ticks every second)
     const clockEl = document.getElementById('wire-clock');
@@ -1249,4 +1286,38 @@ document.querySelectorAll('.news-item[data-expand]').forEach(item => {
     statusEl.textContent = `Auto-curated · top ${picked.length} stories of the week · picked by relevance score`;
   }
   window.__feedEditorial = renderEditorial;
+})();
+
+// ---------- Auto front-page feature: robot editor picks the biggest story ----------
+(function () {
+  window.__feedFeature = function (items) {
+    const card = document.getElementById('featured-card');
+    if (!card || !items || !items.length) return;
+    // strongest story of the week WITH an image (front page needs a visual)
+    const weekAgo = Date.now() / 1000 - 604800;
+    const HOT = [['season', 4], ['confirmed', 5], ['announced', 5], ['reveals', 3], ['premiere', 4],
+      ['movie', 4], ['film', 4], ['anime adaptation', 6], ['release date', 5], ['finale', 4],
+      ['one piece', 3], ['jujutsu', 3], ['re:zero', 3], ['chainsaw', 3], ['dandadan', 3]];
+    const score = n => {
+      const t = (n.title + ' ' + n.desc).toLowerCase();
+      let s = n.img ? 3 : -99;
+      HOT.forEach(([w, p]) => { if (t.includes(w)) s += p; });
+      return s;
+    };
+    const best = items.filter(n => n.ts > weekAgo).sort((a, b) => score(b) - score(a))[0];
+    if (!best || score(best) < 5) return; // keep the hand-written fallback if news is weak
+    const esc = s => (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+    card.href = best.link;
+    card.target = '_blank';
+    card.rel = 'noopener';
+    card.removeAttribute('data-detail');
+    const t = document.getElementById('feat-title');
+    const d = document.getElementById('feat-desc');
+    const b = document.getElementById('feat-byline');
+    const im = document.getElementById('feat-img');
+    if (t) t.textContent = best.title;
+    if (d) d.textContent = best.desc;
+    if (b) b.textContent = (best.author ? 'By ' + best.author + ' · ' : '') + 'Via ' + best.source + ' · this week\'s top story';
+    if (im && best.img) im.innerHTML = `<img src="${esc(best.img)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">`;
+  };
 })();
