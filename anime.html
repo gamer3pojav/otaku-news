@@ -137,7 +137,8 @@
   </div>
 </nav>
 
-<script src="features.js"></script>
+<script type="module" src="firebase-init.js"></script>
+<script src="features.js" defer></script>
 <div class="detail-wrap">
   <a class="back-link" href="index.html#airing">← Back to Otaku News</a>
 
@@ -328,6 +329,7 @@
           <div class="detail-section-label">予告編 — Trailer</div>${trailer}
           ${window.otakuComments ? window.otakuComments(id) : ''}
         </div>`;
+      if (window.otakuCommentsRefresh) window.otakuCommentsRefresh(id);
       expandFranchise(m);
     })
     .catch(() => fail("Couldn't load this anime. The AniList API may be busy — try refreshing."));

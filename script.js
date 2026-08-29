@@ -310,6 +310,13 @@ function creatorOf(m) {
   function openModal(m) { setMode(m); modal.classList.add('open'); document.body.classList.add('lb-locked'); setTimeout(() => userInput.focus(), 250); }
   function closeModal() { modal.classList.remove('open'); document.body.classList.remove('lb-locked'); form.reset(); errBox.style.display = 'none'; }
 
+  // Arrived here via a "log in first" redirect from a page with no
+  // login button of its own (e.g. tapping Add to Watchlist on anime.html)
+  if (new URLSearchParams(location.search).get('auth') === 'login') {
+    openModal('login');
+    history.replaceState(null, '', location.pathname + location.hash);
+  }
+
   function showLoggedIn(name) {
     loginBtn.style.display = 'none';
     chip.style.display = 'flex';
@@ -339,6 +346,10 @@ function creatorOf(m) {
         ? await window.otakuFirebase.signUp(body)
         : await window.otakuFirebase.logIn(body);
       showLoggedIn(user);
+      // Write this AFTER signUp/logIn resolve, so it overwrites any
+      // premature (email-only) value the onAuthChange listener below
+      // may have written while the new profile name was still saving.
+      try { localStorage.setItem('otaku-session', user); } catch (e) {}
       closeModal();
     } catch (err) {
       errBox.textContent = err.message;

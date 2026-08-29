@@ -1,6 +1,6 @@
 /* OTAKU NEWS — shared features: watchlists + comments */
 // ============================================
-// WATCHLIST ENGINE — per-account, device-local
+// WATCHLIST ENGINE — per-account, synced via Firestore
 // ============================================
 (function () {
   const LISTS = ['Watching', 'Plan to Watch', 'Completed'];
@@ -14,6 +14,10 @@
   }
   function saveList(user, list) {
     try { localStorage.setItem(wlKey(user), JSON.stringify(list)); } catch (e) {}
+  }
+  function currentUid() {
+    const u = window.otakuFirebase && window.otakuFirebase.auth.currentUser;
+    return u ? u.uid : null;
   }
 
   window.otakuWL = {
@@ -30,6 +34,8 @@
       if (listName === null) delete list[id];
       else list[id] = { list: listName, title: meta.title || '', img: meta.img || '', added: Date.now() };
       saveList(u, list);
+      const uid = currentUid();
+      if (uid && window.otakuFirebase) window.otakuFirebase.saveWatchlist(uid, list);
       return true;
     },
     all() {
@@ -39,6 +45,21 @@
     lists: LISTS,
     user: currentUser
   };
+
+  // On login, pull this account's watchlist from Firestore once and
+  // merge it in — so a new device (or a cleared browser) picks up
+  // anything saved elsewhere. Local entries always win on conflict.
+  if (window.otakuFirebase) {
+    window.otakuFirebase.onAuthChange(async (uname) => {
+      if (!uname) return;
+      const uid = currentUid();
+      if (!uid) return;
+      try {
+        const remote = await window.otakuFirebase.loadWatchlist(uid);
+        saveList(uname, Object.assign({}, remote, getList(uname)));
+      } catch (e) {}
+    });
+  }
 
   // ---- Watchlist button injected into detail popups/pages ----
   window.otakuWLButton = function (id, title, img) {
@@ -60,6 +81,7 @@
       if (!currentUser()) {
         const login = document.getElementById('login-btn');
         if (login) login.click();
+        else location.href = 'index.html?auth=login';
         return;
       }
       btn.closest('.wl-wrap').classList.toggle('open');
@@ -128,34 +150,46 @@
 })();
 
 // ============================================
-// COMMENTS — per-anime, device-local
+// COMMENTS — shared/public, stored in Firestore
 // ============================================
 (function () {
   function user() { try { return localStorage.getItem('otaku-session'); } catch (e) { return null; } }
-  function cKey(id) { return 'otaku-comments-' + id; }
-  function getComments(id) {
-    try { return JSON.parse(localStorage.getItem(cKey(id)) || '[]'); } catch (e) { return []; }
-  }
   const escX = s => (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 
+  function renderList(comments) {
+    return comments.map(c => `<div class="cm-item">
+      <span class="cm-avatar">${escX((c.user || '?')[0].toUpperCase())}</span>
+      <div><div class="cm-head"><b>${escX(c.user)}</b> <span>${new Date(c.at).toLocaleDateString()}</span></div>
+      <p>${escX(c.text)}</p></div>
+    </div>`).join('') || '<p class="cm-empty">No comments yet. Be the first!</p>';
+  }
+
+  // Synchronous shell so the page renders instantly; otakuCommentsRefresh
+  // fills in the real, shared thread right after (comments live in
+  // Firestore now, so every visitor sees the same list).
   window.otakuComments = function (animeId) {
-    const comments = getComments(animeId);
     return `<div class="cm-box" data-cm-id="${animeId}">
-      <div class="detail-section-label">コメント — Comments (${comments.length})</div>
-      <div class="cm-list">
-        ${comments.map(c => `<div class="cm-item">
-          <span class="cm-avatar">${escX(c.user[0].toUpperCase())}</span>
-          <div><div class="cm-head"><b>${escX(c.user)}</b> <span>${new Date(c.at).toLocaleDateString()}</span></div>
-          <p>${escX(c.text)}</p></div>
-        </div>`).join('') || '<p class="cm-empty">No comments yet. Be the first!</p>'}
-      </div>
+      <div class="detail-section-label">コメント — Comments (<span class="cm-count">…</span>)</div>
+      <div class="cm-list"><p class="cm-empty">Loading comments…</p></div>
       ${user()
         ? `<form class="cm-form"><input type="text" maxlength="500" placeholder="Share your take…" required><button type="submit">Post</button></form>`
         : `<p class="cm-login">Log in to comment.</p>`}
     </div>`;
   };
 
-  document.addEventListener('submit', e => {
+  window.otakuCommentsRefresh = async function (animeId) {
+    const box = document.querySelector('.cm-box[data-cm-id="' + CSS.escape(String(animeId)) + '"]');
+    if (!box || !window.otakuFirebase) return;
+    try {
+      const comments = await window.otakuFirebase.loadComments(animeId);
+      box.querySelector('.cm-count').textContent = comments.length;
+      box.querySelector('.cm-list').innerHTML = renderList(comments);
+    } catch (e) {
+      box.querySelector('.cm-list').innerHTML = '<p class="cm-empty">Couldn\u2019t load comments right now.</p>';
+    }
+  };
+
+  document.addEventListener('submit', async e => {
     const form = e.target.closest('.cm-form');
     if (!form) return;
     e.preventDefault();
@@ -163,10 +197,19 @@
     const id = box.dataset.cmId;
     const input = form.querySelector('input');
     const text = input.value.trim();
-    if (!text || !user()) return;
-    const comments = getComments(id);
-    comments.push({ user: user(), text, at: Date.now() });
-    try { localStorage.setItem(cKey(id), JSON.stringify(comments)); } catch (e2) {}
-    box.outerHTML = window.otakuComments(id);
+    const uname = user();
+    if (!text || !uname || !window.otakuFirebase) return;
+    const btn = form.querySelector('button');
+    btn.disabled = true;
+    try {
+      const current = window.otakuFirebase.auth.currentUser;
+      await window.otakuFirebase.postComment(id, { user: uname, uid: current ? current.uid : null, text });
+      input.value = '';
+      await window.otakuCommentsRefresh(id);
+    } catch (e2) {
+      // leave their typed comment in the box so nothing gets lost
+    } finally {
+      btn.disabled = false;
+    }
   }, true);
 })();

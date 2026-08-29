@@ -18,7 +18,13 @@ import {
   getFirestore,
   doc,
   getDoc,
-  setDoc
+  setDoc,
+  collection,
+  addDoc,
+  query,
+  orderBy,
+  limit,
+  getDocs
 } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -123,4 +129,42 @@ function onAuthChange(cb) {
   });
 }
 
-window.otakuFirebase = { signUp, logIn, logOut, onAuthChange, auth, db };
+// ---------------------------------------------------------------
+// Watchlist — one doc per user (keyed by uid), holding the whole
+// { [animeId]: {list,title,img,added} } map. features.js keeps its
+// own localStorage copy for instant, offline-safe reads/writes, and
+// just mirrors changes here so the data follows the account.
+// ---------------------------------------------------------------
+async function loadWatchlist(uid) {
+  const snap = await getDoc(doc(db, "watchlists", uid));
+  return snap.exists() ? snap.data() : {};
+}
+function saveWatchlist(uid, list) {
+  return setDoc(doc(db, "watchlists", uid), list).catch(() => {});
+}
+
+// ---------------------------------------------------------------
+// Comments — shared/public, stored per anime so every visitor sees
+// the same thread (localStorage alone can't do that, it's per device).
+// ---------------------------------------------------------------
+async function loadComments(animeId) {
+  const q = query(collection(db, "comments", String(animeId), "items"), orderBy("at", "asc"), limit(200));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => d.data());
+}
+function postComment(animeId, { user, uid, text }) {
+  return addDoc(collection(db, "comments", String(animeId), "items"), { user, uid, text, at: Date.now() });
+}
+
+window.otakuFirebase = {
+  signUp,
+  logIn,
+  logOut,
+  onAuthChange,
+  auth,
+  db,
+  loadWatchlist,
+  saveWatchlist,
+  loadComments,
+  postComment
+};
