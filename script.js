@@ -328,57 +328,16 @@ function creatorOf(m) {
     if (e.key === 'Escape' && modal.classList.contains('open')) closeModal();
   });
 
-  // ---- Local accounts (no server needed; stored in this browser) ----
-  async function hashPw(pw, salt) {
-    const data = new TextEncoder().encode(salt + ':' + pw);
-    const buf = await crypto.subtle.digest('SHA-256', data);
-    return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
-  }
-  function localUsers() {
-    try { return JSON.parse(localStorage.getItem('otaku-users') || '{}'); } catch (e) { return {}; }
-  }
-  async function localAuth(mode, body) {
-    const users = localUsers();
-    const uname = (body.username || '').trim();
-    const key = uname.toLowerCase();
-    if (!/^[A-Za-z0-9_]{3,20}$/.test(uname)) throw new Error('Username must be 3-20 chars (letters, numbers, _).');
-    if ((body.password || '').length < 8) throw new Error('Password must be at least 8 characters.');
-    if (mode === 'signup') {
-      if (users[key]) throw new Error('Username already taken on this device.');
-      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(body.email || '')) throw new Error("That email doesn't look right.");
-      const salt = Math.random().toString(36).slice(2, 12);
-      users[key] = { username: uname, email: body.email, salt, hash: await hashPw(body.password, salt) };
-      localStorage.setItem('otaku-users', JSON.stringify(users));
-    } else {
-      const u = users[key];
-      if (!u) throw new Error('No account with that username on this device. Sign up first!');
-      if (await hashPw(body.password, u.salt) !== u.hash) throw new Error('Wrong password.');
-    }
-    localStorage.setItem('otaku-session', users[key].username);
-    return users[key].username;
-  }
-
+  // ---- Firebase accounts (real backend — see firebase-init.js) ----
   form.addEventListener('submit', async e => {
     e.preventDefault();
     errBox.style.display = 'none';
     const body = { username: userInput.value, password: passInput.value };
     if (mode === 'signup') body.email = emailInput.value;
     try {
-      let user = null;
-      try {
-        const res = await fetch('/api/' + mode, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body)
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Something went wrong.');
-        user = data.user;
-      } catch (err) {
-        // Backend error with a real message? show it. Otherwise: no backend -> local accounts.
-        if (err && err.message && !/failed|NetworkError|Unexpected|not valid JSON|fetch/i.test(err.message)) throw err;
-        user = await localAuth(mode, body);
-      }
+      const user = mode === 'signup'
+        ? await window.otakuFirebase.signUp(body)
+        : await window.otakuFirebase.logIn(body);
       showLoggedIn(user);
       closeModal();
     } catch (err) {
@@ -387,25 +346,20 @@ function creatorOf(m) {
     }
   });
 
-  logoutBtn.addEventListener('click', async () => {
-    try { await fetch('/api/logout', { method: 'POST' }); } catch (e) {}
-    try { localStorage.removeItem('otaku-session'); } catch (e) {}
-    showLoggedOut();
-  });
+  logoutBtn.addEventListener('click', () => window.otakuFirebase.logOut());
 
-  // Restore session on page load: backend session OR device-local session
-  fetch('/api/me')
-    .then(r => { if (!r.ok) throw 0; return r.json(); })
-    .then(d => {
-      if (d.user) showLoggedIn(d.user);
-      else throw 0;
-    })
-    .catch(() => {
-      try {
-        const local = localStorage.getItem('otaku-session');
-        if (local) showLoggedIn(local);
-      } catch (e) {}
-    });
+  // Reflect Firebase's real auth state. Also mirror it into
+  // otaku-session so features.js (watchlist/comments, used on
+  // anime.html too) still knows who's logged in without changes.
+  window.otakuFirebase.onAuthChange(user => {
+    if (user) {
+      showLoggedIn(user);
+      try { localStorage.setItem('otaku-session', user); } catch (e) {}
+    } else {
+      showLoggedOut();
+      try { localStorage.removeItem('otaku-session'); } catch (e) {}
+    }
+  });
 })();
 
 // ---------- Hamburger menu ----------
