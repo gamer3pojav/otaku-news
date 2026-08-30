@@ -721,7 +721,10 @@
                   '<button class="ac-btn" type="button" id="ani-disc">Disconnect</button> ' +
                   '<button class="ac-btn" type="button" id="ani-auto">Auto-push: ' + (autoPushOn() ? 'ON' : 'off') + '</button>'
                 : (effectiveClientId()
-                    ? '<button class="acct-save" type="button" id="ani-go" style="font-size:12.5px;padding:9px 18px">Connect AniList</button>'
+                    ? '<button class="acct-save" type="button" id="ani-go" style="font-size:12.5px;padding:9px 18px">Connect AniList</button>' +
+                      '<p style="margin-top:10px;font-size:12px;color:var(--ink-soft)">One-click needs the site\'s Firebase bridge to be deployed. ' +
+                      'Prefer no setup? <button type="button" class="ac-btn" id="ani-paste">paste a token</button> instead — ' +
+                      'yours is at <a href="https://anilist.co/settings/developer" target="_blank" rel="noopener">anilist.co/settings/developer</a>.</p>'
                     : '<p style="font-size:13px;margin:0 0 12px;color:var(--ink-soft)">The owner has not linked AniList for this site yet. ' +
                       'Nothing to do here — <a href="#" id="ani-owner-open">open owner setup</a>, or paste your own token: ' +
                       '<button type="button" class="ac-btn" id="ani-paste">paste a token</button></p>')) +

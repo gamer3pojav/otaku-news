@@ -212,3 +212,60 @@
   max-width: calc(100vw - 16px);
 }
 .wl-wrap { z-index: 3; }        /* keeps the closed button above the overlay too */
+
+/* ============================================================
+   Profile page polish (2026-08-30)
+   Desktop: a small accent bar anchors each card heading.
+   Mobile: the profile page was designed for a 760px column; under
+   640px it collapses — inputs go to 16px (below that, iOS auto-zooms
+   the whole page the moment a field is focused), the avatar row
+   stacks and centers, the label/input grid becomes one column, the
+   action row goes full-width, and the AniList state is a chip not
+   a slab. Pure CSS — no markup or JS touched.
+   ============================================================ */
+
+/* card headings — a small accent bar anchors each card */
+.acct-card h2 { display: flex; align-items: center; gap: 8px; }
+.acct-card h2::before {
+  content: ""; width: 4px; height: 15px; border-radius: 2px;
+  background: var(--accent); flex: 0 0 auto;
+}
+
+@media (max-width: 640px) {
+  .acct-wrap { padding: 24px 14px 60px; }
+  .acct-card { padding: 16px 15px; margin-bottom: 13px; }
+
+  /* 16px = iOS stops zooming the page when a field is focused */
+  .acct-field input[type=text],
+  .acct-field input[type=url],
+  .acct-field textarea,
+  .acct-social input { font-size: 16px; }
+  .acct-social input { padding: 11px 12px; }
+
+  /* avatar row: stacked, centered, bigger target */
+  .acct-avrow { flex-direction: column; align-items: center; text-align: center; gap: 14px; }
+  .acct-avpick { width: 96px; height: 96px; font-size: 34px; }
+  .acct-avrow .av-actions { flex-direction: row; flex-wrap: wrap; justify-content: center; align-items: center; }
+  .acct-avrow .av-actions .acct-hint { flex: 1 1 100%; text-align: center; }
+
+  /* label/input grid → one column, label above its input */
+  .acct-social { grid-template-columns: 1fr; gap: 7px; }
+  .acct-social > span {
+    text-align: left; font-size: 10px; letter-spacing: .08em;
+    text-transform: uppercase; margin-top: 5px;
+  }
+
+  /* actions: stacked, full width, easy to tap */
+  .acct-actions { flex-direction: column; align-items: stretch; gap: 9px; margin-top: 20px; }
+  .acct-actions .acct-save { width: 100%; }
+  .acct-actions .ac-btn { justify-content: center; }
+  .acct-msg { text-align: center; }
+
+  /* bigger touch targets for the small pill buttons on this page */
+  .acct-card .ac-btn { padding: 8px 14px; font-size: 12px; }
+
+  /* the "Not connected" state is a chip, not a full-width slab */
+  .ani-state { width: fit-content; max-width: 100%; padding: 8px 13px; margin-bottom: 11px; }
+
+  .ani-note { font-size: 12px; }
+}
