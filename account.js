@@ -82,6 +82,26 @@
     var f = FB();
     return f && f.auth && f.auth.currentUser ? f.auth.currentUser : null;
   }
+  // "Owner" = the account this site was built and first run on. Deliberately not
+  // a box anyone can tick: with no auth claims available, any toggle would be a
+  // lie a visitor could paste into localStorage.
+  var OWNER_KEY = 'otaku-anilist-owner';
+  function ownerAccount() { try { return localStorage.getItem(OWNER_KEY) || ''; } catch (e) { return ''; } }
+  // An explicit claim, not "first visitor wins by accident of page order": before
+  // anyone claims it the field is closed to strangers, so an unclaimed site must
+  // never read as "this caller is the owner".
+  function isOwnerMode() {
+    var u = me();
+    if (!u) return false;
+    var saved = ownerAccount();
+    if (!saved) return false;                                   // nobody has claimed setup
+    return saved.toLowerCase() === (u.displayName || u.email || '').toLowerCase();
+  }
+  function canClaimOwner() { return !!me() && !ownerAccount(); }
+  function claimOwner() {
+    var u = me(); if (!u || ownerAccount()) return false;
+    try { localStorage.setItem(OWNER_KEY, u.displayName || u.email || ''); return true; } catch (e) { return false; }
+  }
   function load() {
     var u = me();
     if (!u || !FB()) return Promise.resolve(null);
@@ -133,6 +153,11 @@
   /* ------------------------------------------------------------ AniList */
   function aniUser() {
     if (!AL() || !AL().isConnected()) return Promise.resolve(null);
+    // Signed-in label is available offline from the JWT, so the panel is never blank
+    if (AL().decodeToken) {
+      var d = AL().decodeToken();
+      if (d && d.expired) return Promise.resolve(null);
+    }
     if (AL()._viewer) return Promise.resolve(AL()._viewer);
     return AL().viewer().then(function (v) { AL()._viewer = v; return v; }).catch(function () { return null; });
   }
@@ -239,13 +264,19 @@
       }).catch(function () {});
     }
     var conn = AL() && AL().isConnected();
+    var who = '';
+    if (conn && AL().decodeToken) {
+      var dd = AL().decodeToken();
+      if (dd) who = dd.expired ? ' · expired' : (dd.daysLeft != null ? ' · ' + dd.daysLeft + 'd' : '');
+    }
     var ap = autoPushOn();
     body.innerHTML =
       '<button type="button" data-act="profile">Profile &amp; settings</button>' +
       '<button type="button" data-act="watchlist">My watchlist</button>' +
       '<div class="am-sep"></div>' +
-      '<button type="button" data-act="connect">' + (conn ? 'AniList' : 'Connect AniList') +
-        '<span class="am-flag ' + (conn ? 'on' : '') + '">' + (conn ? 'linked' : 'not linked') + '</span></button>' +
+      '<button type="button" data-act="connect">' + (conn ? 'AniList' : 'Link AniList token') +
+        '<span class="am-flag ' + (conn ? 'on' : '') + '">' + (conn ? 'linked' + who
+          : (AL().isConfigured() ? 'not linked' : 'site not set up')) + '</span></button>' +
       '<button type="button" data-act="autopush">Auto-push my scores<span class="am-flag ' + (ap ? 'on' : '') + '">' + (ap ? 'on' : 'off') + '</span></button>' +
       '<div class="am-sep"></div>' +
       '<button type="button" data-act="logout">Log out</button>';
@@ -289,50 +320,87 @@
     menu.classList.add('open');
   }
 
+  // Site-level defaults, so the owner pre-links once and nobody else has to
+  // configure anything. localStorage is this browser; the Firestore profile field
+  // is the copy other devices/visitors read — that one needs the users/{uid} write
+  // rule, and silently no-ops without it.
+  var ANI_SETTINGS_KEY = 'otaku-anilist-settings';
+  function aniSettings() {
+    try { return JSON.parse(localStorage.getItem(ANI_SETTINGS_KEY) || '{}') || {}; } catch (e) { return {}; }
+  }
+  function saveAniSettings(patch) {
+    var next = Object.assign({}, aniSettings(), patch);
+    try { localStorage.setItem(ANI_SETTINGS_KEY, JSON.stringify(next)); } catch (e) {}
+    if (patch.defaultClientId) {
+      try { AL().setClient(patch.defaultClientId); } catch (e) {}
+      // anilist.js reads its own key, so keep the two in step
+      try { localStorage.setItem('otaku-anilist-client', patch.defaultClientId); } catch (e) {}
+    }
+    var u = me();
+    if (u && FB()) {
+      FB().saveProfile(u.uid, { anilistSettings: next }).catch(function () {
+        toast('Saved on this device only — Firestore refused the write (needs firestore.rules)', true);
+      });
+    }
+    return next;
+  }
+  function effectiveClientId() {
+    // A hard-coded global wins: the owner can ship it in index.html and no browser
+    // ever holds a half-configured value.
+    if (window.OTAKU_ANILIST_CLIENT_ID) return String(window.OTAKU_ANILIST_CLIENT_ID);
+    try { if (localStorage.getItem('otaku-anilist-client')) return localStorage.getItem('otaku-anilist-client'); } catch (e) {}
+    return '';
+  }
+
   function doConnect() {
     if (!AL()) return toast('anilist.js is not loaded', true);
     if (AL().isConnected()) {
       if (!confirm('Disconnect your AniList account from this browser?')) return;
-      AL().disconnect();
-      toast('AniList disconnected');
-      return;
+      AL().disconnect(); toast('Disconnected'); return;
     }
-    if (!AL().isConfigured()) return promptClient();
-    location.href = AL().authUrl();
+    // Configured by the owner → the visitor just clicks. Nothing to look up.
+    if (AL().isConfigured()) { location.href = AL().authUrl(); return; }
+    toast('AniList is not linked yet — the site owner sets it once, in Profile → AniList', true);
   }
 
-  // No registered app yet? The pin flow works with zero config, because AniList
-  // hands the token to the user to copy. Kept as a fallback so the feature is
-  // testable before anilist.js has a client id.
-  function promptClient() {
-    var want = prompt(
-      'To push ratings to AniList, this site needs an AniList application ' +
-      '(anilist.co/settings/developer → Create New Application).\n\n' +
-      '1) Paste its Client ID here, or\n' +
-      '2) leave it blank and paste a token you got from ' +
-      'https://anilist.co/settings/developer → your app → "Authorize" (implicit grant).\n\n' +
-      'Client ID (blank = paste a token instead):', '');
-    if (want && want.trim()) {
-      AL().setClient(want.trim());
-      toast('Client ID saved — connecting…');
-      location.href = AL().authUrl();
-      return;
-    }
-    var t = prompt('Paste your AniList access token:');
+  // AniList gives every logged-in member a personal token at
+  // anilist.co/settings/developer. No application, no client ID, no redirect back
+  // to this site, nothing for a third party to be authorised to do.
+  function acquireToken() {
+    window.open('https://anilist.co/settings/developer', '_blank', 'noopener');
+    var t = prompt(
+      'A new tab has anilist.co/settings/developer open.\n\n' +
+      '1) Make sure you are logged in to AniList there\n' +
+      '2) Copy your token\n' +
+      '3) Paste it below\n\n' +
+      'Nothing is authorised to this site. The token is kept in THIS browser only, ' +
+      'never sent to a server of ours, and you can revoke it any time on that page.\n' +
+      'Paste blank to cancel.');
     if (!t || !t.trim()) return;
-    try { localStorage.setItem('otaku-anilist-token', t.trim()); } catch (e) { return toast('Could not save the token locally', true); }
-    AL().viewer().then(function (u) {
-      toast('AniList connected as ' + u.name);
-      if (FB() && FB().auth.currentUser) {
-        FB().saveProfile(FB().auth.currentUser.uid, {
-          anilist: { connected: true, username: u.name, uid: u.id, scoreFormat: u.scoreFormat, connectedAt: Date.now() }
-        }).catch(function () {});
-      }
+    t = t.trim();
+    var d = AL().decodeToken ? AL().decodeToken(t) : null;
+    if (d && d.expired) { toast('That token expired — mint a new one', true); return; }
+    if (!d && !confirm('That does not look like an AniList token (it did not decode). Save it anyway?')) return;
+    try { localStorage.setItem('otaku-anilist-token', t); } catch (e) { return toast('Could not save the token locally', true); }
+    renderAniNow();
+    var u = me();
+    AL().viewer().then(function (v) {
+      if (u) FB().saveProfile(u.uid, { anilist: {
+        username: v.name, uid: v.id, scoreFormat: v.scoreFormat, linkedAt: Date.now()
+      }}).catch(function () {});
+      toast('Linked as ' + v.name + (d && d.daysLeft ? ' · valid ~' + d.daysLeft + ' days' : ''));
+      renderAniNow();
     }).catch(function (e) {
-      localStorage.removeItem('otaku-anilist-token');
-      toast('That token was rejected — ' + e.message, true);
+      // Keep it — a failed check is usually just the network. Verified again on load.
+      toast('Token stored' + (d ? ' (AniList id ' + d.id + ')' : '') +
+        ' but AniList could not be reached right now — ' + (e.message || e) + '. Will verify on next load.', true);
     });
   }
+  // renderAni() is a closure created per page render; the panel exposes itself
+  // here so a token that lands mid-session repaints it without a reload.
+  function renderAniNow() { if (window.__otakuRenderAni) window.__otakuRenderAni(); }
+  // Exposed so the account panel can re-render itself after a token lands.
+  window.__otakuRenderAni = renderAniNow;
 
   function installButton() {
     if (document.querySelector('.acct-btn')) return;
@@ -393,22 +461,92 @@
     autoPush: function () { return autoPushOn(); }, setAutoPush: setAutoPush
   };
 
-  if (document.body.dataset.page === 'account') renderAccountPage();
+  // account.html is a fresh page load, so Firebase has not finished restoring the
+  // session when deferred scripts run. Rendering off a synchronous read of
+  // currentUser is exactly what showed "Log in first" to people who WERE signed in.
+  function bootAccountPage() {
+    var root = $('acct-root');
+    if (!window.__otakuWaitAuth) {              // features.js missing → one retry, then the truth
+      return setTimeout(function () {
+        if (window.__otakuWaitAuth) bootAccountPage();
+        else if (root) root.innerHTML = '<div class="acct-empty"><h2>features.js did not load</h2>' +
+          '<p>The account page needs it. Check that <code>features.js</code> sits next to this file.</p></div>';
+      }, 600);
+    }
+    if (root) root.innerHTML = '<div class="acct-empty"><h2>Checking your session…</h2>' +
+      '<p style="font-size:12px">Waiting for Firebase to report its real auth state.</p></div>';
+    window.__otakuWaitAuth().then(function (name) {
+      if (name) return renderAccountPage();
+      var f = FB();
+      if (f && !f.auth.currentUser) return renderLoginWall();      // genuinely signed out
+      if (root) root.innerHTML = '<div class="acct-empty"><h2>Firebase did not load</h2>' +
+        '<p>This page needs <code>firebase-init.js</code> next to it. If it is there, open the ' +
+        'browser console — a blocked CDN or a bad key shows up there.</p></div>';
+    });
+  }
+  // ---- keep the watchlist dropdown inside the screen on narrow viewports ----
+  // style.css anchors .wl-menu to its button (left:0); on the detail hero near the
+  // right edge that pushes it off-screen. position:fixed (see account.css) makes the
+  // button no longer its containing block, so we place it from the viewport instead.
+  (function () {
+    var vw = function () { return window.innerWidth || document.documentElement.clientWidth || 1024; };
+    function clampMenu(wrap) {
+      var menu = wrap && wrap.querySelector('.wl-menu');
+      if (!menu) return;
+      menu.style.top = menu.style.left = '';
+      var btn = wrap.querySelector('.wl-btn') || wrap;
+      var r = btn.getBoundingClientRect();
+      var m = 8;
+      var winH = window.innerHeight || 0;
+      var menuH = menu.offsetHeight || 0;
+      var w = menu.offsetWidth || 168;
+      var left = Math.max(m, Math.min(r.left, vw() - m - w));
+      var top = r.bottom + 6;
+      if (winH && top + menuH > winH - m && r.top - menuH - 6 > m) {
+        top = r.top - menuH - 6;                    // no room below: flip above the button
+      }
+      menu.style.top = Math.round(Math.max(m, top)) + 'px';
+      menu.style.left = Math.round(left) + 'px';
+      // measure after placement so a mid-flip can settle in one frame
+      if (winH) {
+        var real = menu.getBoundingClientRect();
+        if (real.bottom > winH - m) menu.style.maxHeight = Math.max(120, winH - m - parseFloat(menu.style.top)) + 'px';
+      }
+    }
+    function repositionAll() {
+      document.querySelectorAll('.wl-wrap.open').forEach(clampMenu);
+    }
+    document.addEventListener('click', function (e) {
+      var btn = e.target.closest && e.target.closest('.wl-btn');
+      if (btn) clampMenu(btn.closest('.wl-wrap'));
+    }, true);
+    // fixed positions are viewport-relative, so the panel must follow the page
+    window.addEventListener('resize', repositionAll);
+    window.addEventListener('scroll', repositionAll, true);
+    document.addEventListener('touchstart', function (e) {
+      if (!e.target.closest || !e.target.closest('.wl-wrap')) repositionAll();
+    }, { passive: true });
+  })();
+
+  if (document.body.dataset.page === 'account') bootAccountPage();
   else installButton();
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function () { if (document.body.dataset.page !== 'account') installButton(); });
 
   /* ------------------------------------------------------------ the page */
+  function renderLoginWall() {
+    var root = $('acct-root');
+    if (!root) return;
+    root.innerHTML = '<div class="acct-empty"><h2>Log in first</h2><p>A profile lives on your account — sign in and this page fills in.</p>' +
+      '<button class="acct-save" type="button" id="acct-go-login">Log in</button></div>';
+    var lb = $('login-btn');
+    $('acct-go-login').onclick = function () { if (lb) lb.click(); else location.href = 'index.html?auth=login'; };
+    fbReady().then(function () { if (me()) { location.reload(); } });
+  }
+
   function renderAccountPage() {
     var root = $('acct-root');
     if (!root) return;
-    if (!me()) {
-      root.innerHTML = '<div class="acct-empty"><h2>Log in first</h2><p>A profile lives on your account — sign in and this page fills in.</p>' +
-        '<button class="acct-save" type="button" id="acct-go-login">Log in</button></div>';
-      var lb = $('login-btn');
-      $('acct-go-login').onclick = function () { if (lb) lb.click(); else location.href = 'index.html?auth=login'; };
-      fbReady().then(function () { if (me()) { location.reload(); } });
-      return;
-    }
+    if (!me()) return renderLoginWall();
     var u = me();
     load().then(function (p) {
       p = p || {};
@@ -470,9 +608,14 @@
       bioEl.addEventListener('input', function () { $('bio-n').textContent = String(bioEl.value.length); });
 
       // avatar
-      var picked = p.avatar || '';
+      // a stored avatar may not be an image at all (otakuSafeAvatar, features.js)
+      var picked = (window.otakuSafeAvatar ? window.otakuSafeAvatar(p.avatar) : (p.avatar || '')) || '';
       var pick = $('av-pick');
-      if (picked) { pick.style.backgroundImage = 'url(' + picked + ')'; pick.classList.add('has-img'); }
+      var setAv = function (v) {
+        pick.style.backgroundImage = v ? 'url(' + JSON.stringify(v) + ')' : '';
+        pick.classList.toggle('has-img', !!v);
+      };
+      setAv(picked);
       $('av-choose').onclick = function () { $('av-file').click(); };
       pick.onclick = function () { $('av-file').click(); };
       $('av-file').onchange = function (e) {
@@ -480,8 +623,7 @@
         if (!f) return;
         shrinkAvatar(f).then(function (dataUrl) {
           picked = dataUrl;
-          pick.style.backgroundImage = 'url(' + dataUrl + ')';
-          pick.classList.add('has-img');
+          setAv(dataUrl);
           var kb = Math.round(dataUrl.length * 0.75 / 1024);
           $('av-hint').innerHTML = '<b>ready</b> — 128×128 JPEG, ' + kb + ' KB · press Save profile';
           if (kb > 40) $('av-hint').innerHTML += ' <b>(large)</b>';
@@ -490,8 +632,7 @@
       };
       $('av-clear').onclick = function () {
         picked = '';
-        pick.style.backgroundImage = '';
-        pick.classList.remove('has-img');
+        setAv('');
         $('av-hint').textContent = 'avatar removed — press Save profile';
       };
 
@@ -532,6 +673,7 @@
 
       renderAni();
       renderData();
+      window.__otakuRenderAni = renderAni;      // callable from acquireToken above
 
       function renderAni() {
         var box = $('ani-body');
@@ -552,10 +694,33 @@
                 ? '<button class="ac-btn" type="button" id="ani-test">Test a push on One Piece</button> ' +
                   '<button class="ac-btn" type="button" id="ani-disc">Disconnect</button> ' +
                   '<button class="ac-btn" type="button" id="ani-auto">Auto-push: ' + (autoPushOn() ? 'ON' : 'off') + '</button>'
-                : (AL().isConfigured()
+                : (effectiveClientId()
                     ? '<button class="acct-save" type="button" id="ani-go" style="font-size:12.5px;padding:9px 18px">Connect AniList</button>'
-                    : '<button class="ac-btn" type="button" id="ani-set" style="margin-right:8px">Set Client ID &amp; connect</button>' +
-                      '<button class="ac-btn" type="button" id="ani-pin">Paste a token instead</button>')) +
+                    : '<p style="font-size:13px;margin:0 0 12px;color:var(--ink-soft)">The owner has not linked AniList for this site yet. ' +
+                      'Nothing to do here — <a href="#" id="ani-owner-open">open owner setup</a>, or paste your own token: ' +
+                      '<button type="button" class="ac-btn" id="ani-paste">paste a token</button></p>')) +
+                  (canClaimOwner()
+                    ? '<p style="margin-top:12px;font-size:12px;color:var(--ink-soft)">Owner setup is unclaimed, so AniList is off for ' +
+                      'visitors. ' + (effectiveClientId() ? '' : 'The site already has a Client ID here — claiming lets you change it. ') +
+                      '<button type="button" class="ac-btn" id="ani-claim">Claim setup for this account</button></p>' : '') +
+                  (isOwnerMode()
+                    // Not merely hidden with CSS: a site-wide setting should not
+                    // exist in a visitor's DOM at all, in case a rule is missed.
+                    ? '<div id="ani-owner">' +
+                      '<label class="acct-field"><span class="lbl">Site-wide AniList Client ID (saved once, works for everyone)</span>' +
+                      '<input type="text" id="ani-cid" placeholder="from anilist.co/settings/developer" value="' + esc(effectiveClientId()) + '"></label>' +
+                      '<div class="ani-actions"><button class="ac-btn" type="button" id="ani-cid-save">Save for the whole site</button>' +
+                      '<button class="ac-btn" type="button" id="ani-cid-clear">Remove</button>' +
+                      '<button class="ac-btn" type="button" id="ani-cid-giveup">Give up setup</button></div>' +
+                      '<p class="ani-note">Register once at ' +
+                      '<a href="https://anilist.co/settings/developer" target="_blank" rel="noopener">anilist.co/settings/developer</a> ' +
+                      'with the redirect URL <code>' + esc(location.origin + location.pathname) + '</code> — this exact address. ' +
+                      'Then every visitor just clicks <b>Connect AniList</b>. Nobody has to find a developer page. ' +
+                      'To avoid storing it in a browser at all, put it in the global ' +
+                      '<code>window.OTAKU_ANILIST_CLIENT_ID</code> (a line in index.html) and it wins over anything saved here.</p></div>'
+                    : '') +
+
+                  '<button type="button" id="ani-render" style="display:none"></button>' +
               '<p class="ani-note"><b>How the sync works.</b> AniList has no bare "give a score" API — ' +
               'your stars are written to the <b>list score</b> on your AniList entry, re-expressed for your own ' +
               'score format (' + esc(label) + '), and your list status is left exactly as it was. A comment can ' +
@@ -564,9 +729,34 @@
               '(localStorage) — nothing is sent to a server of ours. Revoke any time at ' +
               '<a href="https://anilist.co/settings/developer" target="_blank" rel="noopener">anilist.co/settings/developer</a>.</p>';
             var on = function (id, fn) { var el = $(id); if (el) el.onclick = fn; };
-            on('ani-go', function () { location.href = AL().authUrl(); });
-            on('ani-set', function () { promptClient(); });
-            on('ani-pin', function () { promptClient(); });
+            on('ani-paste', function () { acquireToken(); });
+            on('ani-go', function () { doConnect(); });
+            on('ani-render', function () { renderAni(); });
+            on('ani-claim', function () {
+              if (claimOwner()) { toast('You own AniList setup for this browser'); renderAni(); }
+            });
+            on('ani-owner-open', function (e) {
+              e.preventDefault();
+              var o = $('ani-owner'); if (o) o.style.display = 'block';
+            });
+            on('ani-cid-save', function () {
+              var v = ($('ani-cid').value || '').trim();
+              if (!v) return toast('Paste the Client ID first', true);
+              if (!ownerAccount()) claimOwner();      // configuring it is the claim
+              saveAniSettings({ defaultClientId: v });
+              toast('Saved — visitors can now connect with one click');
+              renderAni();
+            });
+            on('ani-cid-giveup', function () {
+              if (!confirm('Release this account as the AniList owner? Another account can then claim setup.')) return;
+              try { localStorage.removeItem('otaku-anilist-owner'); } catch (e) {}
+              toast('Setup released'); renderAni();
+            });
+            on('ani-cid-clear', function () {
+              saveAniSettings({ defaultClientId: '' });
+              try { localStorage.removeItem('otaku-anilist-client'); } catch (e) {}
+              toast('Removed'); renderAni();
+            });
             on('ani-disc', function () { AL().disconnect(); toast('Disconnected'); renderAni(); });
             on('ani-auto', function (e) { setAutoPush(!autoPushOn()); e.target.textContent = 'Auto-push: ' + (autoPushOn() ? 'ON' : 'off'); });
             on('ani-test', function () {
@@ -597,11 +787,19 @@
           '<p class="ani-note">Profile lives in Firestore at <code>users/' + esc(u.uid) + '</code>. Your login ' +
           'is a Firebase Auth account; the <code>usernames/&lt;name&gt;</code> doc that maps a username to an email is ' +
           'rewritten when you change your name.</p>';
-        }).catch(function () { box.textContent = 'could not read profile (check Firestore rules).'; });
+        }).catch(function (e) {
+          box.innerHTML = '<p class="ani-note">Profile reads failed: <b>' + esc((e && (e.code || e.message)) || e) +
+            '</b><br>Everything still saves to this device. For cross-device sync, add the ' +
+            '<code>users/{uid}</code> block from <code>firestore.rules</code> in the Firebase console.</p>';
+        });
       }
     }).catch(function (e) {
-      root.innerHTML = '<div class="acct-empty"><h2>Could not load your profile</h2><p>' + esc(e.message || e) +
-        '</p><p style="font-size:12px">If this is a fresh Firestore, the <code>users</code> collection needs read/write rules for the signed-in uid.</p></div>';
+      root.innerHTML = '<div class="acct-empty"><h2>Could not read your profile</h2><p>' +
+        esc((e && (e.code || e.message)) || e) + '</p>' +
+        '<p style="font-size:12px;max-width:56ch;margin:0 auto 16px">This is Firestore refusing ' +
+        '<code>users/&lt;uid&gt;</code>. Add that block from <code>firestore.rules</code> and reload. ' +
+        'Nothing you type is lost either way — saves fall back to this device.</p>' +
+        '<button class="acct-save" type="button" onclick="location.reload()">Retry</button></div>';
     });
   }
 })();

@@ -58,6 +58,42 @@
     try { return JSON.parse(localStorage.getItem(LS_USER) || "null"); } catch (e) { return null; }
   }
   function cacheUser(u) { try { localStorage.setItem(LS_USER, JSON.stringify(u)); } catch (e) {} }
+  // AniList access tokens are JWTs whose payload holds { uid, exp }. Decoding
+  // locally means "linked as <name>" is instantly correct even if the API is
+  // unreachable — no request, nothing sent anywhere, and it works offline.
+  function decodeToken(t) {
+    try {
+      // Only fall back to the STORED token when no argument was passed. With a
+      // falsy-but-present value like '' doing `t || token()` would decode the
+      // session's real token and hand back a valid identity — surprising, and
+      // wrong for any caller using the result as a sanity check.
+      var src = (arguments.length === 0 || t === undefined || t === null) ? token() : t;
+      if (typeof src !== 'string' || !src) return null;
+      var part = src.split('.')[1];
+      if (!part) return null;
+      part = part.replace(/-/g, '+').replace(/_/g, '/');
+      while (part.length % 4) part += '=';
+      var raw = atob(part);
+      // Browsers tolerate stray characters in atob, so 'not-a-jwt' decodes to
+      // junk that JSON.parse can still accept. Require the real token shape
+      // before handing anything back — a caller must never see a truthy {} here.
+      if (!raw || raw.length < 8) return null;
+      var p;
+      try { p = JSON.parse(decodeURIComponent(escape(raw))); } catch (e) { return null; }
+      if (!p || typeof p !== 'object' || typeof p.uid !== 'number') return null;
+      var out = { id: p.uid };
+      if (p.exp) {
+        out.expiresAt = p.exp * 1000;
+        out.expired = p.exp * 1000 < Date.now();
+        out.daysLeft = Math.floor((p.exp * 1000 - Date.now()) / 86400000);
+      }
+      return out;
+    } catch (e) { return null; }
+  }
+
+  // A stored guess from the last online visit, so the UI isn't blank before /v
+  function remembered() { return cachedUser(); }
+
   function cachedUserFormat() {
     var u = cachedUser();
     return (u && u.scoreFormat) || "POINT_10_DECIMAL";
@@ -165,6 +201,7 @@
     gql: gql,
     isConfigured: function () { return !!clientId(); },
     isConnected: function () { return !!token(); },
+    decodeToken: decodeToken,
     disconnect: function () { setToken(""); return Promise.resolve(); },
 
     viewer: function () {
@@ -182,6 +219,14 @@
           };
           cacheUser(u);
           return u;
+        })
+        .catch(function (e) {
+          // Offline / blocked / expired-token: answer from the JWT itself so the
+          // account panel still tells the truth about who is linked.
+          var d = decodeToken();
+          var r = remembered();
+          if (r && r.id && (!d || d.id === r.id) && !(d && d.expired)) return r;
+          throw e;
         });
     },
 

@@ -190,3 +190,25 @@
 .acct-empty { text-align: center; padding: 60px 20px; }
 .acct-empty h2 { font-size: 19px; margin: 0 0 8px; }
 .acct-empty p { color: var(--ink-soft); font-size: 13.5px; margin: 0 0 18px; }
+
+/* ============================================================
+   The "Add to Watchlist" dropdown on the detail page — root-cause fix.
+   Three separate things were fighting it, all in the ORIGINAL code:
+     1. .cr-hero { overflow: hidden }  (anime.html) cropped the panel, so
+        "Plan to Watch" was cut off — exactly what the screenshot shows.
+     2. .wl-menu { position: absolute; z-index: 60 } (style.css) could not beat
+        that clip at any z-index, because it was inside the clipped box.
+     3. .cr-hero__inner { position: relative; z-index: 2 } trapped the whole
+        subtree BELOW the hero's backdrop-filter overlay, so the open menu was
+        painted underneath a blurred layer and looked dead.
+   position:fixed escapes both the clip and the stacking context, so the panel is
+   simply not inside them any more. Clamping it to the viewport is done in
+   account.js, since `fixed` makes it viewport-relative rather than button-relative.
+   ============================================================ */
+.wl-wrap.open .wl-menu {
+  position: fixed;
+  z-index: 500;                 /* above the hero overlay, whatever it promotes */
+  min-width: 168px;
+  max-width: calc(100vw - 16px);
+}
+.wl-wrap { z-index: 3; }        /* keeps the closed button above the overlay too */

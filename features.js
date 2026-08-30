@@ -2,6 +2,33 @@
 // ============================================
 // WATCHLIST ENGINE — per-account, synced via Firestore
 // ============================================
+// firebase-init.js is an ES module: its CDN imports resolve some time AFTER the
+// deferred classic scripts have run and after anime.html's inline script has
+// already built the comment DOM. Reading window.otakuFirebase synchronously at
+// that moment is undefined, and the old code simply returned — leaving
+// "loading…" on screen forever. Everything shared now waits first.
+window.__otakuWaitFB = function (tries) {
+  return new Promise(function (res) {
+    if (window.otakuFirebase) return res(window.otakuFirebase);
+    var n = 0, cap = tries || 80;              // ~4s at 50ms
+    var iv = setInterval(function () {
+      if (window.otakuFirebase) { clearInterval(iv); res(window.otakuFirebase); }
+      else if (++n > cap) { clearInterval(iv); res(null); }
+    }, 50);
+  });
+};
+// Resolves with the signed-in name (or null) only once Firebase has reported
+// its real auth state — never on a too-early read of currentUser.
+window.__otakuWaitAuth = function () {
+  return window.__otakuWaitFB().then(function (f) {
+    if (!f) return null;
+    if (f.auth.currentUser) return f.auth.currentUser.displayName || f.auth.currentUser.email;
+    return new Promise(function (res) {
+      var un = f.onAuthChange(function (name) { if (un) un(); res(name || null); });
+    });
+  });
+};
+
 (function () {
   const LISTS = ['Watching', 'Plan to Watch', 'Completed'];
 
@@ -95,6 +122,10 @@
       const listName = opt.dataset.list || null;
       window.otakuWL.set(id, listName, { title: wrap.dataset.wlTitle, img: wrap.dataset.wlImg });
       const status = window.otakuWL.status(id);
+      // outerHTML is the right primitive here: it PARSES the markup.
+      // replaceWith(string) would insert a raw TEXT node instead — i.e. the
+      // button would be replaced by the literal HTML source. (This was tried
+      // and broke the widget, so keep outerHTML.)
       wrap.outerHTML = window.otakuWLButton(id, wrap.dataset.wlTitle, wrap.dataset.wlImg);
       return;
     }
@@ -104,6 +135,18 @@
   }, true);
 
   // ---- My List panel (opens from user chip) ----
+  // Titles and cover URLs come from AniList and from whatever a previous render
+  // wrote into localStorage / watchlists/{uid} — both are untrusted by the time
+  // they come back. This IIFE has its own esc() (the comments one at line ~188 is
+  // inside a different closure), because this panel used to interpolate raw.
+  const esc = s => (s == null ? '' : String(s))
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const safeImg = u => {
+    try {
+      const x = new URL(u, location.href);
+      return (x.protocol === 'https:' || x.protocol === 'data:') ? x.href : '';
+    } catch (e) { return ''; }
+  };
   function renderMyList() {
     const u = currentUser();
     if (!u) return;
@@ -118,15 +161,15 @@
     const ids = Object.keys(all);
     panel.innerHTML = `<div class="mylist-modal">
       <button class="mylist-close">✕</button>
-      <h3>${u}'s Watchlist</h3>
+      <h3>${esc(u)}'s Watchlist</h3>
       ${LISTS.map(l => {
         const items = ids.filter(id => all[id].list === l);
         if (!items.length) return '';
         return `<div class="mylist-label">${l} (${items.length})</div>
         <div class="mylist-grid">${items.map(id => `
-          <a class="mylist-item" href="anime.html?id=${id}">
-            ${all[id].img ? `<img src="${all[id].img}" loading="lazy" alt="">` : ''}
-            <span>${all[id].title}</span>
+          <a class="mylist-item" href="anime.html?id=${encodeURIComponent(id)}">
+            ${safeImg(all[id].img) ? `<img src="${esc(safeImg(all[id].img))}" loading="lazy" alt="">` : ''}
+            <span>${esc(all[id].title)}</span>
           </a>`).join('')}</div>`;
       }).join('') || '<p class="mylist-empty">Nothing saved yet — open any anime and hit "+ Add to Watchlist"</p>'}
     </div>`;
@@ -148,6 +191,16 @@
     }
   });
 })();
+
+// ============================================
+// AVATAR VALUES ARE UNTRUSTED. users/{uid}.avatar is written by its owner and
+// firestore.rules caps only its LENGTH (<=300000), never its shape, so whatever
+// sits there may be markup rather than an image. Three render sites consume it:
+// an <img src>, a CSS backgroundImage, and the profile picker.
+window.otakuSafeAvatar = function (v) {
+  return typeof v === 'string' &&
+    /^data:image\/(jpeg|png|gif|webp);base64,[A-Za-z0-9+/=\s]+$/.test(v) ? v.trim() : '';
+};
 
 // ============================================
 // COMMENTS — shared/public, stored in Firestore
@@ -195,9 +248,18 @@
     if (fb) {
       const uids = [...new Set(comments.map(c => c.uid).filter(Boolean))].slice(0, 30);
       if (uids.length) {
-        try {
+        // Injectable so the escaping below is testable; the real path is the
+        // batched read underneath.
+        if (fb.getUserAvatars) {
+          try { Object.assign(pics, (await fb.getUserAvatars(uids)) || {}); } catch (e) {}
+        } else try {
           const m = await import("https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js");
-          const snap = await m.getDocs(m.query(m.collection(fb.db, "users"), m.where("__name__", "in", uids)));
+          // was: m.where("__name__", "in", uids) — a dotted/`__name__` STRING field
+          // path, not the document id, so it matched nothing and every commenter
+          // silently fell back to an initial. FieldPath.documentId() is the real id
+          // reference (and for a top-level collection the bare uid is the right value).
+          const snap = await m.getDocs(m.query(m.collection(fb.db, "users"),
+            m.where(m.FieldPath.documentId(), "in", uids)));
           snap.forEach(d => { const av = (d.data() || {}).avatar; if (av) pics[d.id] = av; });
         } catch (e) { /* avatars are cosmetic — never block the thread */ }
       }
@@ -206,9 +268,10 @@
       const mine = !!(c.uid && fb && fb.auth.currentUser && c.uid === fb.auth.currentUser.uid);
       const del = (mine || canModerate()) && c.id
         ? '<button class="cm-del" type="button" title="Delete your comment">✕</button>' : '';
-      const av = pics[c.uid] ? `<img src="${pics[c.uid]}" alt="">` : escX((c.user || '?')[0].toUpperCase());
+      const pic = window.otakuSafeAvatar(pics[c.uid]);
+      const av = pic ? `<img src="${escX(pic)}" alt="">` : escX((c.user || '?')[0].toUpperCase());
       return `<div class="cm-item" data-cm-doc="${escX(c.id || '')}" data-cm-uid="${escX(c.uid || '')}">
-      <span class="cm-avatar${pics[c.uid] ? ' has-img' : ''}">${av}</span>
+      <span class="cm-avatar${pic ? ' has-img' : ''}">${av}</span>
       <div class="cm-main"><div class="cm-head"><b>${escX(c.user)}</b> <span>${new Date(c.at).toLocaleDateString()}</span>${del}</div>
       ${c.tenths ? `<div class="cm-stars">${starsHTML(c.tenths)}<em>${(c.tenths / 20).toFixed(1)}/5</em></div>` : ''}
       <p>${escX(c.text)}</p></div>
@@ -234,9 +297,14 @@
 
   window.otakuCommentsRefresh = async function (animeId) {
     const box = document.querySelector('.cm-box[data-cm-id="' + CSS.escape(String(animeId)) + '"]');
-    if (!box || !window.otakuFirebase) return;
+    if (!box) return;
+    const fbc = await window.__otakuWaitFB();
+    if (!fbc) {
+      box.querySelector('.cm-list').innerHTML = '<p class="cm-empty">Could not reach Firebase — check that <code>firebase-init.js</code> loaded.</p>';
+      return;
+    }
     try {
-      const comments = await window.otakuFirebase.loadComments(animeId);
+      const comments = await fbc.loadComments(animeId);
       box.querySelector('.cm-count').textContent = comments.length;
       box.querySelector('.cm-list').innerHTML = await renderList(comments);
     } catch (e) {
@@ -351,8 +419,13 @@
 
   async function refresh(animeId) {
     const box = document.querySelector('.rating-block[data-rating-id="' + CSS.escape(String(animeId)) + '"]');
-    const f = fb();
-    if (!box || !f) return;
+    if (!box) return;
+    const f = await window.__otakuWaitFB();     // was: sync read, often undefined
+    if (!f) {
+      const c = box.querySelector('.ra-count');
+      if (c) c.textContent = 'Firebase unavailable — ratings are off';
+      return;
+    }
     try {
       const all = (await f.loadScores(animeId)) || {};
       const cur = f.auth.currentUser;
@@ -384,8 +457,8 @@
   window.__otakuRatingRefresh = refresh;
 
   window.__otakuApplyRating = async function (animeId, tenths, srcEl) {
-    const f = fb();
-    if (!f) return;
+    const f = await window.__otakuWaitFB();
+    if (!f) { if (window.otakuAccount) window.otakuAccount.toast('Firebase unavailable', true); return; }
     const cur = f.auth.currentUser;
     if (!cur) {
       const login = document.getElementById('login-btn');
@@ -417,8 +490,9 @@
 (function () {
   function paint(el, pic) {
     if (!el) return;
+    pic = window.otakuSafeAvatar(pic);   // rules cap the length, not the shape
     if (pic) {
-      el.style.backgroundImage = 'url(' + pic + ')';
+      el.style.backgroundImage = 'url(' + JSON.stringify(pic) + ')';
       el.style.backgroundSize = 'cover';
       el.style.backgroundPosition = 'center';
       el.classList.add('has-img');

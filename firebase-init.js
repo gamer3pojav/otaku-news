@@ -166,15 +166,49 @@ function postComment(animeId, { user, uid, text }) {
 // for this to work. A 128px q0.8 JPEG is ~6-14 KB, well inside the
 // 1 MB per-document limit (compression happens client-side, account.js).
 // ---------------------------------------------------------------
+const localProfileKey = uid => "otaku-profile-" + uid;
+
+// Firestore first (cross-device), localStorage as a guaranteed fallback.
+// Without this the whole profile page depends on a ruleset the visitor may
+// never have deployed — a permission denial would leave the page permanently
+// empty, which is exactly what happened on the first deployed build.
 async function loadProfile(uid) {
   if (!uid) return null;
-  const snap = await getDoc(doc(db, "users", uid));
-  return snap.exists() ? snap.data() : null;
+  const readLocal = () => {
+    try { return JSON.parse(localStorage.getItem(localProfileKey(uid)) || "null"); } catch (e) { return null; }
+  };
+  try {
+    const snap = await getDoc(doc(db, "users", uid));
+    if (snap.exists()) {
+      const data = snap.data();
+      const local = readLocal();
+      // keep whichever copy is newer (updatedAt is written on every save)
+      if (local && (local.updatedAt || 0) > (data.updatedAt || 0)) return local;
+      return data;
+    }
+    return readLocal();
+  } catch (e) {
+    const local = readLocal();
+    if (local) return local;
+    throw e;                       // nothing cached — let the UI explain
+  }
 }
-function saveProfile(uid, patch) {
-  // merge:true so a bio edit never clobbers someone's avatar set from
-  // another tab/device mid-session.
-  return setDoc(doc(db, "users", uid), patch, { merge: true });
+async function saveProfile(uid, patch) {
+  let merged = patch;
+  try {                                    // merge locally too, so a partial
+    const prev = JSON.parse(localStorage.getItem(localProfileKey(uid)) || "{}");
+    merged = Object.assign({}, prev, patch);
+    localStorage.setItem(localProfileKey(uid), JSON.stringify(merged));
+  } catch (e) {}
+  try {
+    await setDoc(doc(db, "users", uid), patch, { merge: true });
+  } catch (e) {                            // never lose the edit to a rules error
+    if (e && /permission/i.test(String(e.code || e.message || ""))) {
+      e.profileOffline = true;             // tell the UI it saved on-device only
+    }
+    throw e;
+  }
+  return merged;
 }
 async function setDisplayName(uid, name) {
   const user = auth.currentUser;
