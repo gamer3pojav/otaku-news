@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="preconnect" href="https://graphql.anilist.co" crossorigin>
+<link rel="preconnect" href="https://s4.anilist.co" crossorigin>
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My Account — Otaku News</title>
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="account.css">
+<style>
+  .acct-hero { max-width: 760px; margin: 0 auto; padding: 34px 20px 0; }
+  .acct-hero h1 { font-size: clamp(30px, 5.4vw, 46px); line-height: 1.06; letter-spacing: -.025em; margin: 0 0 8px; }
+  .acct-hero .kicker { font-family: var(--mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 10px; }
+  .acct-hero p { color: var(--ink-soft); font-size: 14px; margin: 0; max-width: 60ch; }
+</style>
+</head>
+<body data-page="account">
+
+<nav>
+  <div class="nav-inner">
+    <a href="index.html" class="logo">
+      <span class="mark"><img src="assets/logo.jpg" alt="Kenjaku from Jujutsu Kaisen — Otaku News logo"></span>
+      <span class="word">Otaku News<span class="jp">オタクニュース</span></span>
+    </a>
+    <div class="nav-actions">
+      <a class="ac-btn" href="index.html">← Back to the site</a>
+      <button id="theme-toggle" title="Toggle light / dark mode" aria-label="Toggle light / dark mode"><span class="ti-moon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></span><span class="ti-sun"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="4.9" y1="4.9" x2="7" y2="7"/><line x1="17" y1="17" x2="19.1" y2="19.1"/><line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/><line x1="4.9" y1="19.1" x2="7" y2="17"/><line x1="17" y1="7" x2="19.1" y2="4.9"/></svg></span></button>
+    </div>
+  </div>
+</nav>
+
+<div class="acct-hero">
+  <div class="kicker">アカウント — MY ACCOUNT</div>
+  <h1>Your <em style="font-style:normal;color:var(--accent)">profile</em>.</h1>
+  <p>Picture, name, bio and links. Everything here lives in your account's own
+     Firestore document, and comment threads pick up your picture automatically.</p>
+</div>
+
+<div class="acct-wrap" id="acct-root">
+  <div class="acct-empty"><h2>Loading your profile…</h2></div>
+</div>
+
+<footer>
+  OTAKU NEWS © 2026 — MADE WITH <span class="heart">♥</span> BY FANS, FOR FANS · RANCHI → TOKYO
+</footer>
+
+<!-- Cloned from the homepage so "log in first" works on this page too. -->
+<div class="modal-overlay" id="auth-modal">
+  <div class="modal">
+    <button class="close-x" id="auth-close" aria-label="Close">✕</button>
+    <h3 id="auth-title">Welcome back</h3>
+    <p class="modal-sub" id="auth-sub">ログイン — LOG IN TO OTAKU NEWS</p>
+    <form id="auth-form">
+      <p class="auth-error" id="auth-error"></p>
+      <input type="text" id="auth-username" placeholder="Username" required autocomplete="username">
+      <input type="email" id="auth-email" placeholder="Email" autocomplete="email" style="display:none">
+      <input type="password" id="auth-password" placeholder="Password" required autocomplete="current-password">
+      <button type="submit" class="submit-btn" id="auth-submit">Log in</button>
+    </form>
+    <p class="switch-mode" id="auth-switch">New here? <a id="auth-toggle-mode">Create an account</a></p>
+  </div>
+</div>
+
+<!-- account.js anchors its button to #login-btn; this page keeps it parked off-screen. -->
+<button class="auth-btn" id="login-btn" style="position:fixed;left:-9999px;top:0" aria-hidden="true">Log in</button>
+
+<script>
+  // ---------- Theme (shared) ----------
+  (function () {
+    var themeBtn = document.getElementById('theme-toggle'), root = document.documentElement;
+    function applyTheme(t) { root.setAttribute('data-theme', t); try { localStorage.setItem('otaku-theme', t); } catch (e) {} }
+    var saved = null;
+    try { saved = localStorage.getItem('otaku-theme'); } catch (e) {}
+    applyTheme(saved || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
+    if (themeBtn) themeBtn.addEventListener('click', function () {
+      applyTheme(root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+    });
+  })();
+</script>
+<script>
+  // Fallback auth: this page doesn't ship the homepage's modal wiring (script.js), so
+  // clicking "Log in" opens the cloned modal and hands it to Firebase directly.
+  (function () {
+    var modal = document.getElementById('auth-modal');
+    var close = function () { modal.classList.remove('open'); document.body.classList.remove('lb-locked'); };
+    var open = function () { modal.classList.add('open'); document.body.classList.add('lb-locked'); };
+    var btn = document.getElementById('login-btn');
+    if (btn) btn.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); open(); });
+    document.getElementById('auth-close').addEventListener('click', close);
+    modal.addEventListener('click', function (e) { if (e.target === modal) close(); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
+
+    var form = document.getElementById('auth-form'), err = document.getElementById('auth-error');
+    var mode = 'login';
+    function setMode(m) {
+      mode = m;
+      document.getElementById('auth-title').textContent = m === 'login' ? 'Welcome back' : 'Create account';
+      document.getElementById('auth-sub').textContent = m === 'login' ? 'ログイン — LOG IN TO OTAKU NEWS' : '新規登録 — JOIN OTAKU NEWS';
+      document.getElementById('auth-submit').textContent = m === 'login' ? 'Log in' : 'Sign up';
+      document.getElementById('auth-email').style.display = m === 'login' ? 'none' : '';
+      var sw = document.getElementById('auth-switch');
+      sw.innerHTML = m === 'login' ? 'New here? <a id="auth-toggle-mode">Create an account</a>'
+                                   : 'Already in? <a id="auth-toggle-mode">Log in</a>';
+      document.getElementById('auth-toggle-mode').addEventListener('click', function () {
+        setMode(mode === 'login' ? 'signup' : 'login');
+      });
+    }
+    setMode('login');
+    form.addEventListener('submit', async function (e) {
+      e.preventDefault();
+      err.style.display = 'none';
+      var name = document.getElementById('auth-username').value.trim();
+      var pass = document.getElementById('auth-password').value;
+      var mail = document.getElementById('auth-email').value.trim();
+      var f = window.otakuFirebase;
+      if (!f) { err.textContent = 'Firebase is still loading — try again in a second.'; err.style.display = 'block'; return; }
+      try {
+        if (mode === 'signup') await f.signUp({ username: name, email: mail, password: pass });
+        else await f.logIn({ username: name, password: pass });
+        try { localStorage.setItem('otaku-session', name); } catch (x) {}
+        location.reload();
+      } catch (x2) { err.textContent = x2.message || 'Something went wrong.'; err.style.display = 'block'; }
+    });
+  })();
+</script>
+<script type="module" src="firebase-init.js"></script>
+<script src="anilist.js" defer></script>
+<script src="features.js" defer></script>
+<script src="account.js" defer></script>
+<script src="lightbox.js" defer></script>
+</body>
+</html>

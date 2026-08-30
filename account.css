@@ -1,0 +1,192 @@
+/* ============================================
+   OTAKU NEWS — account.css
+   Additive layer: stars, comment actions, profile pictures, the account
+   menu, the profile page and the AniList panel. Reuses style.css tokens, so
+   it themes itself with the site's existing light/dark switch.
+   ============================================ */
+
+/* ---- stars ---- */
+.ot-stars { display: inline-flex; align-items: center; gap: 2px; vertical-align: middle; }
+.ot-star {
+  width: 15px; height: 15px; display: inline-block; flex: 0 0 auto;
+  background: var(--ink-faint); opacity: .35;
+  clip-path: polygon(50% 0%, 61.8% 34.5%, 98% 34.5%, 68.2% 57.5%, 79.4% 91%, 50% 70%, 20.6% 91%, 31.8% 57.5%, 2% 34.5%, 38.2% 34.5%);
+}
+.ot-star.f2 { background: var(--accent); opacity: 1; }
+.ot-star.f1 {
+  opacity: 1;
+  background: linear-gradient(90deg, var(--accent) 0 50%, var(--ink-faint) 50% 100%);
+}
+.rating-agg .ot-star, .cm-stars .ot-star { width: 13px; height: 13px; }
+
+/* the select IS the input; the star glyphs are the readable rendering of it */
+.ot-stars-pick { position: relative; cursor: pointer; }
+.ot-star-input {
+  margin-left: 8px; font: inherit; font-size: 12.5px; font-weight: 700;
+  padding: 3px 7px; border: 1px solid var(--line); border-radius: 7px;
+  background: var(--card); color: var(--ink); cursor: pointer; max-width: 110px;
+}
+.ot-star-input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* ---- rating block ---- */
+.rating-block {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px;
+  padding: 13px 15px; margin: 0 0 14px;
+  border: 1px solid var(--line); border-radius: 11px; background: var(--card);
+}
+.rating-agg { display: flex; align-items: baseline; gap: 8px; }
+.ra-avg { font-size: 27px; font-weight: 800; letter-spacing: -.02em; line-height: 1; }
+.ra-stars { display: inline-flex; align-items: center; }
+.ra-count { font-size: 11.5px; color: var(--ink-soft); font-family: var(--mono); }
+.rating-dist { display: flex; flex-direction: column; gap: 3px; min-width: 168px; }
+.rd-row { display: flex; align-items: center; gap: 7px; font-size: 10.5px; color: var(--ink-faint); font-family: var(--mono); }
+.rd-row > span:first-child { width: 22px; text-align: right; }
+.rd-bar { flex: 1; height: 5px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.rd-bar i { display: block; height: 100%; background: var(--accent); opacity: .8; transition: width .3s ease; }
+.rd-row em { width: 18px; font-style: normal; }
+.rating-mine { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.rating-mine .rm-label { font-size: 11px; color: var(--ink-soft); font-family: var(--mono); text-transform: uppercase; letter-spacing: .06em; }
+.rating-mine em { font-style: normal; font-weight: 800; font-size: 13px; }
+.rating-block.shake { animation: ot-shake .3s ease; }
+@keyframes ot-shake { 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+
+/* ---- AniList push ---- */
+.ot-ani-push, .ac-btn {
+  font: inherit; font-size: 11.5px; font-weight: 700; cursor: pointer;
+  padding: 5px 11px; border-radius: 100px; border: 1px solid var(--line);
+  background: var(--paper); color: var(--ink-soft); transition: all .15s ease;
+  text-decoration: none; display: inline-flex; align-items: center; gap: 6px;
+}
+.ot-ani-push:hover, .ac-btn:hover { border-color: var(--accent); color: var(--accent); }
+.ot-ani-push.on { background: #17a673; border-color: #17a673; color: #fff; }
+.ot-ani-push[disabled] { opacity: .55; cursor: progress; }
+
+/* ---- comment tweaks ---- */
+.cm-main { min-width: 0; flex: 1; }
+.cm-head { display: flex; align-items: center; gap: 7px; }
+.cm-head > span { margin-right: auto; }
+.cm-del {
+  border: none; background: none; cursor: pointer; color: var(--ink-faint);
+  font-size: 12px; line-height: 1; padding: 3px 5px; border-radius: 6px; transition: all .15s;
+}
+.cm-del:hover { color: var(--accent); background: var(--accent-soft); }
+.cm-del[disabled] { opacity: .4; cursor: wait; }
+.cm-stars { display: flex; align-items: center; gap: 6px; margin: 3px 0 5px; }
+.cm-stars em { font-style: normal; font-size: 11px; color: var(--ink-soft); font-family: var(--mono); }
+.cm-form { display: block; }
+.cm-form-stars { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.cm-form-hint { font-size: 10.5px; color: var(--ink-faint); font-family: var(--mono); }
+
+/* profile pictures */
+.cm-avatar.has-img { background: none !important; overflow: hidden; }
+.cm-avatar.has-img img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
+.user-chip .avatar.has-img { font-size: 0; overflow: hidden; width: 30px; height: 30px; }
+.user-chip .avatar { transition: box-shadow .15s ease; }
+
+/* ---- account button + menu ---- */
+.acct-btn {
+  display: none; align-items: center; gap: 6px;
+  font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer;
+  padding: 7px 13px; border-radius: 100px; border: 1px solid var(--accent);
+  background: var(--accent-soft); color: var(--accent);
+}
+.acct-btn.show { display: inline-flex; }
+.acct-btn:hover { background: var(--accent); color: #fff; }
+.menu-drawer .acct-btn { width: 100%; justify-content: center; }
+
+.acct-menu {
+  position: fixed; z-index: 130; min-width: 232px; padding: 8px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 13px;
+  box-shadow: 0 18px 48px rgba(10,10,14,.18);
+  opacity: 0; transform: translateY(-6px) scale(.985); pointer-events: none;
+  transition: opacity .16s ease, transform .16s ease;
+}
+[data-theme="dark"] .acct-menu { box-shadow: 0 18px 48px rgba(0,0,0,.55); }
+.acct-menu.open { opacity: 1; transform: none; pointer-events: auto; }
+.acct-menu .am-head { display: flex; align-items: center; gap: 10px; padding: 6px 8px 10px; border-bottom: 1px solid var(--line); margin-bottom: 6px; }
+.acct-menu .am-av {
+  width: 34px; height: 34px; border-radius: 50%; flex: 0 0 auto;
+  background: linear-gradient(135deg, var(--accent), #ff8a5c); color: #fff;
+  display: grid; place-items: center; font-weight: 800;
+  background-size: cover; background-position: center;
+}
+.acct-menu .am-av.has-img { font-size: 0; overflow: hidden; }
+.acct-menu .am-name { font-weight: 800; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.acct-menu .am-sub { font-size: 10.5px; color: var(--ink-faint); font-family: var(--mono); }
+.acct-menu button {
+  display: flex; align-items: center; gap: 9px; width: 100%; text-align: left;
+  font: inherit; font-size: 12.5px; font-weight: 600; padding: 8px 9px;
+  border: none; border-radius: 8px; background: none; color: var(--ink); cursor: pointer;
+}
+.acct-menu button:hover { background: var(--accent-soft); color: var(--accent); }
+.acct-menu .am-sep { height: 1px; background: var(--line); margin: 6px 0; }
+.am-flag { margin-left: auto; font-size: 10px; font-family: var(--mono); color: var(--ink-faint); }
+.am-flag.on { color: #17a673; }
+
+/* ---- account page ---- */
+.acct-wrap { max-width: 760px; margin: 0 auto; padding: 34px 20px 70px; }
+.acct-card {
+  border: 1px solid var(--line); border-radius: 14px; background: var(--card);
+  padding: 20px 22px; margin-bottom: 16px;
+}
+.acct-card h2 { font-size: 15px; margin: 0 0 3px; letter-spacing: -.01em; }
+.acct-card .sub { font-size: 11.5px; color: var(--ink-soft); font-family: var(--mono); margin: 0 0 16px; }
+.acct-field { display: block; margin-bottom: 14px; }
+.acct-field > label:first-child,
+.acct-field > .lbl {
+  display: block; font-size: 10.5px; font-weight: 800; letter-spacing: .07em;
+  text-transform: uppercase; color: var(--ink-soft); font-family: var(--mono); margin-bottom: 6px;
+}
+.acct-field input[type=text], .acct-field input[type=url], .acct-field textarea {
+  width: 100%; font: inherit; font-size: 14px; padding: 10px 12px;
+  border: 1px solid var(--line); border-radius: 9px; background: var(--paper); color: var(--ink);
+}
+.acct-field textarea { min-height: 96px; resize: vertical; line-height: 1.55; }
+.acct-field input:focus-visible, .acct-field textarea:focus-visible { outline: 2px solid var(--accent); border-color: transparent; }
+.acct-hint { display: block; font-size: 10.5px; color: var(--ink-faint); margin-top: 5px; font-family: var(--mono); }
+.acct-hint b { color: var(--ink-soft); }
+
+.acct-avrow { display: flex; align-items: center; gap: 16px; margin-bottom: 4px; }
+.acct-avpick {
+  width: 84px; height: 84px; border-radius: 50%; flex: 0 0 auto; cursor: pointer;
+  background: linear-gradient(135deg, var(--accent), #ff8a5c); color: #fff;
+  display: grid; place-items: center; font-size: 30px; font-weight: 800;
+  background-size: cover; background-position: center; border: none; overflow: hidden;
+}
+.acct-avpick.has-img { font-size: 0; }
+.acct-avrow .av-actions { display: flex; flex-direction: column; gap: 7px; align-items: flex-start; }
+
+.acct-social { display: grid; grid-template-columns: 108px 1fr; gap: 9px 12px; align-items: center; }
+.acct-social > span { font-size: 11.5px; font-family: var(--mono); color: var(--ink-soft); text-align: right; }
+.acct-social input {
+  width: 100%; font: inherit; font-size: 13px; padding: 8px 11px;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--ink);
+}
+.acct-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 18px; }
+.acct-save {
+  font: inherit; font-size: 13.5px; font-weight: 800; cursor: pointer;
+  padding: 11px 24px; border-radius: 100px; border: none;
+  background: var(--accent); color: #fff; transition: filter .15s;
+}
+.acct-save:hover { filter: brightness(1.1); }
+.acct-save[disabled] { opacity: .6; cursor: wait; }
+.acct-msg { font-size: 12px; font-family: var(--mono); }
+.acct-msg.ok { color: #17a673; }
+.acct-msg.bad { color: var(--accent); }
+@media (max-width: 640px) { .rating-mine { margin-left: 0; width: 100%; } }
+
+/* AniList panel */
+.ani-state {
+  display: flex; align-items: center; gap: 10px; padding: 11px 13px; margin-bottom: 13px;
+  border-radius: 10px; font-size: 12.5px; background: var(--paper); border: 1px solid var(--line);
+}
+.ani-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ink-faint); flex: 0 0 auto; }
+.ani-dot.on { background: #17a673; box-shadow: 0 0 0 3px rgba(23,166,115,.16); }
+.ani-state a { color: var(--accent); }
+.ani-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.ani-note { font-size: 11.5px; line-height: 1.65; color: var(--ink-soft); margin: 13px 0 0; }
+.ani-note code { font-family: var(--mono); font-size: 10.5px; background: var(--accent-soft); padding: 1px 5px; border-radius: 4px; }
+
+.acct-empty { text-align: center; padding: 60px 20px; }
+.acct-empty h2 { font-size: 19px; margin: 0 0 8px; }
+.acct-empty p { color: var(--ink-soft); font-size: 13.5px; margin: 0 0 18px; }

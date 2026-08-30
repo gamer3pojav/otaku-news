@@ -14,6 +14,7 @@ import {
   onAuthStateChanged,
   updateProfile
 } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-auth.js";
+import { deleteDoc } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
 import {
   getFirestore,
   doc,
@@ -150,10 +151,65 @@ function saveWatchlist(uid, list) {
 async function loadComments(animeId) {
   const q = query(collection(db, "comments", String(animeId), "items"), orderBy("at", "asc"), limit(200));
   const snap = await getDocs(q);
-  return snap.docs.map((d) => d.data());
+  // `id` is the Firestore doc id — required for deletion.
+  return snap.docs.map((d) => Object.assign({ id: d.id }, d.data()));
 }
 function postComment(animeId, { user, uid, text }) {
   return addDoc(collection(db, "comments", String(animeId), "items"), { user, uid, text, at: Date.now() });
+}
+
+
+// ---------------------------------------------------------------
+// PROFILES — one doc per uid at users/{uid}.
+// Avatars are stored here as a ~128px base64 JPEG rather than in
+// Firebase Storage, so no Storage bucket / rules have to be configured
+// for this to work. A 128px q0.8 JPEG is ~6-14 KB, well inside the
+// 1 MB per-document limit (compression happens client-side, account.js).
+// ---------------------------------------------------------------
+async function loadProfile(uid) {
+  if (!uid) return null;
+  const snap = await getDoc(doc(db, "users", uid));
+  return snap.exists() ? snap.data() : null;
+}
+function saveProfile(uid, patch) {
+  // merge:true so a bio edit never clobbers someone's avatar set from
+  // another tab/device mid-session.
+  return setDoc(doc(db, "users", uid), patch, { merge: true });
+}
+async function setDisplayName(uid, name) {
+  const user = auth.currentUser;
+  if (!user) throw new Error("Not signed in.");
+  await updateProfile(user, { displayName: name });
+  const uname = (name || "").trim();
+  const key = usernameKey(uname);
+  if (key) await setDoc(doc(db, "usernames", key), { email: user.email, uid }, { merge: true });
+}
+
+// ---------------------------------------------------------------
+// RATINGS — 5 stars, stored as tenths (10..100, step 10) because that
+// is the shape AniList's POINT_100 score format expects. Keeping the
+// tenths here means "push to AniList" is a 1:1 copy, not a re-round.
+// Scores are GLOBAL (one number per title, all visitors see it); the
+// per-user write to AniList happens in anilist.js.
+// ---------------------------------------------------------------
+async function loadScores(animeId) {
+  const snap = await getDoc(doc(db, "scores", String(animeId)));
+  return snap.exists() ? snap.data() : {};
+}
+function setScore(animeId, uid, tenths) {
+  const ref_ = doc(db, "scores", String(animeId));
+  if (tenths === null) return setDoc(ref_, { [uid]: null }, { merge: true }).catch(() => {});
+  return setDoc(ref_, { [uid]: tenths }, { merge: true }).catch(() => {});
+}
+
+// ---------------------------------------------------------------
+// COMMENT DELETION. The doc id is the Firestore auto-id the comment was
+// created with, so loadComments() has to hand it back — features.js keeps
+// it on the rendered node and passes it here. Authorship is re-checked
+// server-side by the security rules, not just hidden in the UI.
+// ---------------------------------------------------------------
+function deleteComment(animeId, commentDocId) {
+  return deleteDoc(doc(db, "comments", String(animeId), "items", commentDocId));
 }
 
 window.otakuFirebase = {
@@ -166,5 +222,11 @@ window.otakuFirebase = {
   loadWatchlist,
   saveWatchlist,
   loadComments,
-  postComment
+  postComment,
+  deleteComment,
+  loadProfile,
+  saveProfile,
+  setDisplayName,
+  loadScores,
+  setScore
 };
