@@ -21,17 +21,25 @@
     document.head.appendChild(l);
   }
 
-  // ---- finish the AniList implicit grant before anything reads the token ----
-  if (AL() && AL().consumeRedirect()) {
-    AL().viewer().then(function (u) {
-      toast('AniList connected as ' + u.name);
-      if (FB() && FB().auth.currentUser) {
-        FB().saveProfile(FB().auth.currentUser.uid, {
-          anilist: { connected: true, username: u.name, uid: u.id, scoreFormat: u.scoreFormat, connectedAt: Date.now() }
-        }).catch(function () {});
-      }
-      renderMenuIfOpen();
-    }).catch(function (e) { toast('AniList token rejected — ' + e.message, true); });
+  // ---- finish the AniList connect redirect before anything reads the token ----
+  // consumeRedirect() now exchanges ?code=… for the token, so it is async; an
+  // old cached anilist.js still returns a sync boolean — Promise.resolve()
+  // copes with both without a reload.
+  if (AL()) {
+    Promise.resolve(AL().consumeRedirect()).then(function (r) {
+      if (!r) return;                          // nothing to consume
+      if (r && r.error) { toast('AniList connect failed — ' + r.error, true); return; }
+      AL().viewer().then(function (u) {
+        toast('AniList connected as ' + u.name);
+        if (FB() && FB().auth.currentUser) {
+          FB().saveProfile(FB().auth.currentUser.uid, {
+            anilist: { connected: true, username: u.name, uid: u.id, scoreFormat: u.scoreFormat, connectedAt: Date.now() }
+          }).catch(function () {});
+        }
+        renderMenuIfOpen();
+        if (document.body.dataset.page === 'account' && window.__otakuRenderAni) window.__otakuRenderAni();
+      }).catch(function (e) { toast('AniList token rejected — ' + e.message, true); });
+    }).catch(function () {});
   }
 
   /* ------------------------------------------------------------ utils */
@@ -331,18 +339,36 @@
   function saveAniSettings(patch) {
     var next = Object.assign({}, aniSettings(), patch);
     try { localStorage.setItem(ANI_SETTINGS_KEY, JSON.stringify(next)); } catch (e) {}
-    if (patch.defaultClientId) {
+    if (patch.defaultClientId != null) {
       try { AL().setClient(patch.defaultClientId); } catch (e) {}
       // anilist.js reads its own key, so keep the two in step
-      try { localStorage.setItem('otaku-anilist-client', patch.defaultClientId); } catch (e) {}
+      try { patch.defaultClientId ? localStorage.setItem('otaku-anilist-client', patch.defaultClientId)
+        : localStorage.removeItem('otaku-anilist-client'); } catch (e) {}
     }
+    if (patch.defaultClientSecret != null) {
+      try { AL().setSecret(patch.defaultClientSecret); } catch (e) {}
+      try { patch.defaultClientSecret ? localStorage.setItem('otaku-anilist-secret', patch.defaultClientSecret)
+        : localStorage.removeItem('otaku-anilist-secret'); } catch (e) {}
+    }
+    // Mirror everything EXCEPT the secret into the Firestore profile: that doc is
+    // read by other devices, and a shared client secret is not a profile field.
+    var pub = Object.assign({}, next);
+    delete pub.defaultClientSecret;
     var u = me();
     if (u && FB()) {
-      FB().saveProfile(u.uid, { anilistSettings: next }).catch(function () {
+      FB().saveProfile(u.uid, { anilistSettings: pub }).catch(function () {
         toast('Saved on this device only — Firestore refused the write (needs firestore.rules)', true);
       });
     }
     return next;
+  }
+  function effectiveClientSecret() {
+    // Same precedence as the client ID. For the flow to work for every visitor,
+    // this belongs in index.html (window.OTAKU_ANILIST_CLIENT_SECRET) — a value
+    // saved in the owner's browser only helps the owner's browser.
+    if (window.OTAKU_ANILIST_CLIENT_SECRET) return String(window.OTAKU_ANILIST_CLIENT_SECRET);
+    try { if (localStorage.getItem('otaku-anilist-secret')) return localStorage.getItem('otaku-anilist-secret'); } catch (e) {}
+    return '';
   }
   function effectiveClientId() {
     // A hard-coded global wins: the owner can ship it in index.html and no browser
@@ -709,15 +735,22 @@
                     ? '<div id="ani-owner">' +
                       '<label class="acct-field"><span class="lbl">Site-wide AniList Client ID (saved once, works for everyone)</span>' +
                       '<input type="text" id="ani-cid" placeholder="from anilist.co/settings/developer" value="' + esc(effectiveClientId()) + '"></label>' +
+                      '<label class="acct-field"><span class="lbl">Site-wide AniList Client Secret (paste it if your app shows one — the code exchange needs it)</span>' +
+                      '<input type="password" id="ani-csec" placeholder="shown next to the Client ID" value="' + esc(effectiveClientSecret()) + '"></label>' +
                       '<div class="ani-actions"><button class="ac-btn" type="button" id="ani-cid-save">Save for the whole site</button>' +
                       '<button class="ac-btn" type="button" id="ani-cid-clear">Remove</button>' +
                       '<button class="ac-btn" type="button" id="ani-cid-giveup">Give up setup</button></div>' +
-                      '<p class="ani-note">Register once at ' +
+                      '<p class="ani-note">Register the app once at ' +
                       '<a href="https://anilist.co/settings/developer" target="_blank" rel="noopener">anilist.co/settings/developer</a> ' +
                       'with the redirect URL <code>' + esc(location.origin + location.pathname) + '</code> — this exact address. ' +
-                      'Then every visitor just clicks <b>Connect AniList</b>. Nobody has to find a developer page. ' +
-                      'To avoid storing it in a browser at all, put it in the global ' +
-                      '<code>window.OTAKU_ANILIST_CLIENT_ID</code> (a line in index.html) and it wins over anything saved here.</p></div>'
+                      'Keep its grant type as <b>Authorization Code</b> (the current default): apps limited to the old ' +
+                      '<i>implicit</i> flow are rejected by AniList with <code>unsupported_grant_type</code>. ' +
+                      'Then paste the Client ID, plus the Client Secret if your app shows one, and save. ' +
+                      'Every visitor just clicks <b>Connect AniList</b> — nobody has to find a developer page. ' +
+                      'For this to work in <i>every</i> visitor\'s browser, put both in the globals ' +
+                      '<code>window.OTAKU_ANILIST_CLIENT_ID</code> and <code>window.OTAKU_ANILIST_CLIENT_SECRET</code> ' +
+                      '(lines in index.html) — they win over anything saved here. ' +
+                      'The secret is kept out of Firestore and never mirrored to other devices.</p></div>'
                     : '') +
 
                   '<button type="button" id="ani-render" style="display:none"></button>' +
@@ -742,9 +775,11 @@
             on('ani-cid-save', function () {
               var v = ($('ani-cid').value || '').trim();
               if (!v) return toast('Paste the Client ID first', true);
+              var s = $('ani-csec') ? ($('ani-csec').value || '').trim() : '';
               if (!ownerAccount()) claimOwner();      // configuring it is the claim
-              saveAniSettings({ defaultClientId: v });
-              toast('Saved — visitors can now connect with one click');
+              saveAniSettings({ defaultClientId: v, defaultClientSecret: s });
+              toast(s ? 'Saved — visitors can now connect with one click'
+                      : 'Saved — if your app shows a Client Secret, paste it too, or the connect will fail');
               renderAni();
             });
             on('ani-cid-giveup', function () {

@@ -10,6 +10,13 @@
 <title>Otaku News — Anime News & Reviews</title>
 <link rel="stylesheet" href="style.css">
 <link rel="stylesheet" href="account.css">
+<script>
+/* AniList connect bridge — the Firebase Cloud Function that performs the
+   OAuth code→token exchange (functions/index.js). If "Connect AniList" ever
+   shows "token proxy answered 404", the function is not deployed at this URL
+   (or the region prefix differs) — compare with your `firebase deploy` output. */
+window.OTAKU_ANILIST_TOKEN_PROXY = "https://us-central1-otaku-news-1062.cloudfunctions.net/anilistToken";
+</script>
 </head>
 <body>
 

@@ -18,9 +18,18 @@
    • `score` is interpreted per the user's own MediaListScoreType
      (POINT_100 / POINT_10_DECIMAL / POINT_10 / POINT_5 / POINT_3), so a "4★" has
      to be re-expressed for each format — see toAniScore().
-   • Auth is OAuth2 *implicit* grant: https://anilist.co/api/v2/oauth/authorize
-     ?client_id=…&response_type=token. The token comes back in the URL FRAGMENT, so
-     it never reaches any server — which is exactly why no backend is needed.
+   • Auth is the OAuth2 *authorization code* grant:
+     https://anilist.co/api/v2/oauth/authorize?client_id=…&response_type=code.
+     The CODE comes back in the query string; consumeRedirect() exchanges it at
+     POST /api/v2/oauth/token, so the token still never reaches any server of ours
+     (the browser talks straight to AniList — no backend needed).
+     WHY NOT IMPLICIT ANYMORE: apps created on the current developer page only
+     allow the code grant, and AniList rejects the legacy response_type=token
+     request with {"error":"unsupported_grant_type"} (reproduced live). The
+     fragment path is kept only for apps registered as *implicit* before that.
+     WHY FORM-URLENCODED: a JSON body would trigger a CORS preflight, and OPTIONS
+     to the token endpoint returns 404 (verified live) — a preflight can never
+     pass, so the exchange must be a "simple request".
      Tokens are long-lived (1 year); AniList has no refresh tokens and no scopes.
    • Because a token means full write access to that account, it is kept in this
      browser only (localStorage) and never copied to Firestore or a server of ours.
@@ -31,8 +40,11 @@
 (function () {
   var EP = "https://graphql.anilist.co";
   var AUTH_URL = "https://anilist.co/api/v2/oauth/authorize";
+  var TOKEN_URL = "https://anilist.co/api/v2/oauth/token";
   var LS_TOKEN = "otaku-anilist-token";
   var LS_CLIENT = "otaku-anilist-client";
+  var LS_SECRET = "otaku-anilist-secret";
+  var LS_STATE = "otaku-anilist-state";
   var LS_USER = "otaku-anilist-user";
 
   var FORMAT_LABEL = {
@@ -47,6 +59,14 @@
   function setClient(id) {
     id = (id || "").trim();
     try { id ? localStorage.setItem(LS_CLIENT, id) : localStorage.removeItem(LS_CLIENT); } catch (e) {}
+  }
+  // The secret, when the owner's app has one (the current developer page shows one
+  // next to the client ID). Kept in this browser only — account.js deliberately
+  // never mirrors it into the Firestore profile, unlike the client ID.
+  function clientSecret() { try { return localStorage.getItem(LS_SECRET) || ""; } catch (e) { return ""; } }
+  function setSecret(s) {
+    s = (s || "").trim();
+    try { s ? localStorage.setItem(LS_SECRET, s) : localStorage.removeItem(LS_SECRET); } catch (e) {}
   }
 
   function token() { try { return localStorage.getItem(LS_TOKEN) || ""; } catch (e) { return ""; } }
@@ -99,30 +119,156 @@
     return (u && u.scoreFormat) || "POINT_10_DECIMAL";
   }
 
-  // Finish the implicit grant. The token sits in #access_token=…, so it is read here
-  // and the fragment is scrubbed straight away — otherwise it stays in the address
-  // bar, in history, and in any referer header the page later sends.
-  function consumeRedirect() {
-    var h = location.hash || "";
-    if (h.indexOf("access_token=") === -1) return false;
-    var params = new URLSearchParams(h.replace(/^#/, ""));
-    var t = params.get("access_token");
-    if (!t) return false;
-    setToken(t);
-    history.replaceState(null, "", location.pathname + location.search);
-    return true;
+  // The registered callback, or "" when it can never match (file://).
+  function redirectUri() {
+    if (/^https?:$/.test(location.protocol)) return location.origin + location.pathname;
+    return "";
   }
 
+  function randState() {
+    try {
+      var b = new Uint8Array(16);
+      if (window.crypto && window.crypto.getRandomValues) window.crypto.getRandomValues(b);
+      else for (var i = 0; i < b.length; i++) b[i] = Math.floor(Math.random() * 256);
+      var hex = "";
+      for (var j = 0; j < b.length; j++) hex += ("0" + b[j].toString(16)).slice(-2);
+      return hex;
+    } catch (e) { return "s" + Date.now().toString(36) + Math.random().toString(36).slice(2, 10); }
+  }
+
+  // Begin the authorization code grant. state is kept in this browser so the
+  // return trip can prove the redirect is ours (CSRF); a stale entry is dropped
+  // by the age check in consumeRedirect().
   function authUrl() {
     var id = clientId();
     if (!id) return "";
-    var q = "client_id=" + encodeURIComponent(id) + "&response_type=token";
-    // Only send redirect_uri when actually http(s)-hosted; a file:// origin can
-    // never be a registered callback and AniList would reject the whole request.
-    if (/^https?:$/.test(location.protocol)) {
-      q += "&redirect_uri=" + encodeURIComponent(location.origin + location.pathname);
-    }
+    var state = randState();
+    try { localStorage.setItem(LS_STATE, JSON.stringify({ s: state, t: Date.now() })); } catch (e) {}
+    var q = "client_id=" + encodeURIComponent(id) + "&response_type=code";
+    var ru = redirectUri();
+    if (ru) q += "&redirect_uri=" + encodeURIComponent(ru);
+    q += "&state=" + encodeURIComponent(state);
     return AUTH_URL + "?" + q;
+  }
+
+  // Optional server-side exchange. When the site sets
+  // window.OTAKU_ANILIST_TOKEN_PROXY (a Firebase Cloud Function that performs the
+  // code→token POST — see functions/index.js), the browser hands it ONLY the
+  // one-use code; the client secret then lives on the server, not in this
+  // browser, and CORS is answered by the function itself. Left empty, the
+  // exchange goes straight from this browser to AniList (the form-urlencoded
+  // path below) and the secret must be present here.
+  function tokenProxy() {
+    try {
+      var p = window.OTAKU_ANILIST_TOKEN_PROXY;
+      return (typeof p === "string" && p) ? p : "";
+    } catch (e) { return ""; }
+  }
+
+  // Exchange ?code=… for the token. "Simple request" on purpose when going
+  // straight to AniList — form-urlencoded, no custom headers — because a JSON
+  // body would raise a CORS preflight and OPTIONS to that endpoint 404s
+  // (verified live). Through the proxy the body is JSON, but the proxy (not
+  // AniList) is the CORS peer and answers the preflight.
+  function exchangeCode(code) {
+    var proxy = tokenProxy();
+    if (proxy) {
+      return fetch(proxy, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Accept": "application/json" },
+        body: JSON.stringify({ code: code })
+      }).then(function (res) {
+        return res.json().catch(function () { return {}; }).then(function (j) {
+          if (j && j.token) return j.token;
+          var msg = (j && (j.error || j.message)) || ("token proxy HTTP " + res.status);
+          if (res.status === 404) {
+            msg = "token proxy answered 404 — the Cloud Function isn't deployed at this URL (yet). " +
+                  "Check the deploy output and update window.OTAKU_ANILIST_TOKEN_PROXY in index.html.";
+          }
+          throw new Error(msg);
+        });
+      });
+    }
+    var body = "grant_type=authorization_code" +
+      "&code=" + encodeURIComponent(code) +
+      "&client_id=" + encodeURIComponent(clientId());
+    var ru = redirectUri();
+    if (ru) body += "&redirect_uri=" + encodeURIComponent(ru);
+    var sec = clientSecret();
+    if (sec) body += "&client_secret=" + encodeURIComponent(sec);
+    return fetch(TOKEN_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json" },
+      body: body
+    }).then(function (res) {
+      return res.json().catch(function () { return {}; }).then(function (j) {
+        if (j && j.access_token) return j.access_token;
+        throw new Error((j && (j.message || j.error_description || j.error)) || "AniList HTTP " + res.status);
+      });
+    });
+  }
+
+  // Finish a login redirect. Resolves to:
+  //   false          — nothing to consume
+  //   true           — a token is stored (code exchange, or a legacy implicit app)
+  //   { error: msg } — the flow failed; surface msg to the user
+  function consumeRedirect() {
+    // 1) Legacy implicit apps (registered before the code-grant era): the token
+    //    sits in #access_token=… — read it and scrub the fragment straight away,
+    //    otherwise it lingers in the address bar, history, and referer headers.
+    var h = location.hash || "";
+    if (h.indexOf("access_token=") !== -1) {
+      var params = new URLSearchParams(h.replace(/^#/, ""));
+      var t = params.get("access_token");
+      if (t) {
+        setToken(t);
+        history.replaceState(null, "", location.pathname + location.search);
+        return Promise.resolve(true);
+      }
+    }
+    var qs;
+    try { qs = new URLSearchParams(location.search); } catch (e) { qs = null; }
+    if (!qs) return Promise.resolve(false);
+    // 2) Code grant: ?code=…&state=…
+    var code = qs.get("code");
+    if (code) {
+      var got = qs.get("state") || "";
+      var exp = "", age = 0;
+      try {
+        var st = JSON.parse(localStorage.getItem(LS_STATE) || "null") || {};
+        exp = st.s || "";
+        age = Date.now() - (st.t || 0);
+      } catch (e) {}
+      try { localStorage.removeItem(LS_STATE); } catch (e) {}
+      // The code is single-use — scrub the URL before the network round-trip.
+      history.replaceState(null, "", location.pathname);
+      if (exp && got !== exp) {
+        return Promise.resolve({ error: "State mismatch — the redirect was rejected for your own safety. Click Connect again." });
+      }
+      if (exp && age > 2 * 60 * 60 * 1000) {
+        return Promise.resolve({ error: "That authorization lapsed — click Connect again." });
+      }
+      return exchangeCode(code).then(function (tok) {
+        setToken(tok);
+        return true;
+      }).catch(function (e) {
+        var m = (e && e.message) ? e.message : "The token exchange failed.";
+        // A CORS/network block looks different from an API error: the request
+        // never got an answer the browser would show us. Point at the path that
+        // always works — a pasted token (anilist.co/settings/developer).
+        if (/failed to fetch|networkerror|load failed|network request/i.test(m)) {
+          m = "the browser blocked the token exchange before it could answer (cross-origin). " +
+              "Use the \"paste a token\" option here instead — a token is available at anilist.co/settings/developer.";
+        }
+        return { error: m };
+      });
+    }
+    // 3) The user declined, or AniList sent an error back in the query.
+    if (qs.get("error")) {
+      history.replaceState(null, "", location.pathname);
+      return Promise.resolve({ error: qs.get("error_description") || qs.get("error") });
+    }
+    return Promise.resolve(false);
   }
 
   function gql(query, variables) {
@@ -196,7 +342,12 @@
     token: token,
     clientId: clientId,
     setClient: setClient,
+    clientSecret: clientSecret,
+    setSecret: setSecret,
+    redirectUri: redirectUri,
+    tokenProxy: tokenProxy,
     authUrl: authUrl,
+    exchangeCode: exchangeCode,
     consumeRedirect: consumeRedirect,
     gql: gql,
     isConfigured: function () { return !!clientId(); },

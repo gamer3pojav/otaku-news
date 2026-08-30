@@ -165,8 +165,101 @@ Worth knowing because the two obvious designs are impossible:
   the reload merge all worked; the menu was simply off-screen. That is why the earlier
   112 assertions stayed green while it looked dead to a finger.)*
 
+## AniList connect: implicit → authorization code grant (2026-08-30)
+
+* **Symptom:** on the deployed site, "Connect AniList" ended in
+  `{"error":"unsupported_grant_type","message":"The authorization grant type is
+  not supported by the authorization server."}`.
+* **Cause:** the site requested the legacy *implicit* grant
+  (`response_type=token`). Apps created on the current developer page only allow
+  the *authorization code* grant (they are issued a client secret; implicit is no
+  longer what you get), so AniList rejects the request. That exact JSON is
+  AniList's rejection — reproduced live from the token endpoint, which answers
+  with the same body for any grant the app does not allow.
+* **`anilist.js`**: `authUrl()` now sends `response_type=code` plus a 128-bit
+  `state` (kept in `otaku-anilist-state` with a timestamp; mismatched or >2h-old
+  state is rejected). `consumeRedirect()` is now async and resolves
+  `false | true | {error}`: (1) still consumes a legacy `#access_token` fragment
+  for apps registered as implicit, (2) exchanges `?code&state` at
+  `POST /api/v2/oauth/token`, (3) surfaces a `?error=…` redirect (user decline).
+  The exchange is **form-urlencoded on purpose**: a JSON body would raise a CORS
+  preflight, and OPTIONS to that endpoint returns 404 (verified live) — a
+  preflight can never pass. If the fetch itself is blocked (CORS), the surfaced
+  message points at the "paste a token" option instead of a cryptic failure.
+  New: `clientSecret()` / `setSecret()` (key `otaku-anilist-secret`).
+* **`account.js`**: the boot hook awaits `consumeRedirect()` — wrapped in
+  `Promise.resolve()` so a stale cached `anilist.js` (sync boolean) can't throw.
+  Owner setup gained a **Client Secret** field; `saveAniSettings()` strips it
+  before the Firestore mirror (that profile doc is readable by other devices — a
+  shared secret is not a profile field).
+* **Deploy:** replace `anilist.js` and `account.js`.
+* **Owner, once:** if your app shows a Client Secret next to the Client ID,
+  paste it in Profile → AniList. For it to work in *every* visitor's browser,
+  both values belong in `window.OTAKU_ANILIST_CLIENT_ID` /
+  `window.OTAKU_ANILIST_CLIENT_SECRET` lines in index.html (same precedence as
+  the client ID already had).
+* **One thing I could not verify without a real app:** whether the token
+  endpoint answers a registered origin's CORS request — live probes with an
+  unknown client_id returned no `Access-Control-Allow-Origin` at all. If the
+  exchange is blocked in a real browser, the toast says exactly that, and
+  "paste a token" (personal token, anilist.co/settings/developer) remains the
+  always-working path — no app, no redirect, nothing to configure.
+* **Verification:** `node ani-oauth-test.js` — 39 assertions driving the real
+  `anilist.js` in a vm sandbox with stubbed location/history/localStorage/fetch:
+  authorize-URL shape (code grant, exact registered redirect, 128-bit state),
+  state round-trip, mismatch rejection (no network call), exchange payload
+  (grant_type, code, client_id, redirect_uri, url-encoded secret), single-use
+  URL scrubbing, legacy fragment, `?error=` surfacing, API-error vs
+  CORS-failure messages, plus `decodeToken` and score-mapping regressions.
+
+## Firebase Cloud Function exchange proxy (optional, recommended)
+
+The site's project (`otaku-news-1062`) has a Firebase backend, so the code→token
+exchange can run through a Cloud Function instead of straight from the visitor's
+browser. Deploying it removes the one remaining unknown (AniList's token endpoint
+showed no CORS headers in live probes) and moves the client secret server-side:
+
+* `functions/index.js` — HTTPS function `anilistToken` (v2, Node 20). Origin-
+  allowlisted (site + local dev), answers its own CORS preflight, takes only the
+  one-use `code`, does the form-urlencoded POST to AniList, returns `{token}`.
+  The secret is read from a function secret and never echoed.
+* `firebase.json` — set `ANILIST_CLIENT_ID` + `ANILIST_REDIRECT_URI` under
+  `functions.params` (both non-secret; the client ID is already public).
+* `.firebaserc` — pins the default project to `otaku-news-1062`.
+
+Deploy (from the repo root, with the Firebase CLI logged in):
+
+    cd functions && npm install && cd ..
+    # edit firebase.json → paste your client ID
+    firebase functions:secrets:set ANILIST_CLIENT_SECRET
+    firebase deploy --only functions
+
+Then, once (the URL is in the deploy output / console → Functions; the region
+prefix is whatever your project uses):
+
+    <script>window.OTAKU_ANILIST_TOKEN_PROXY = "https://<region>-otaku-news-1062.cloudfunctions.net/anilistToken";</script>
+
+`anilist.js` reads that global: set → exchange via the function (browser sends
+only the code); unset → direct browser→AniList exchange (the form-urlencoded
+path, secret in the browser as before). So the function is a pure upgrade, not a
+dependency. With it deployed, the browser-side Client Secret field in
+Profile → AniList is no longer needed for visitors.
+
+No rate limiter in v1: the code is single-use and the free-tier quota already
+bounds abuse; the origin allowlist is the real gate. If the site gets busy, add
+a Firestore counter keyed by IP+minute.
+
 ## Verification
 
+* `node ani-oauth-test.js` — **49/49** assertions on the 2026-08-30 connect
+  flow: drives the real `anilist.js` in a vm sandbox with stubbed
+  location/history/localStorage/fetch (authorize-URL shape, state round-trip +
+  mismatch rejection, direct exchange payload, proxy mode, legacy fragment,
+  error surfacing, decodeToken/score regressions).
+* `node functions/smoke-test.js` — **17/17** assertions: loads the real Cloud
+  Function (firebase-functions v5 installed) and drives it with fake req/res —
+  preflight 204/403, origin allowlist (incl. localhost), method/body validation,
+  not-configured 500, no code/secret echo.
 * `node /home/user/test-harness/run.js` — **152/152** assertions, driving the real
   `features.js` / `account.js` / `anilist.js` in jsdom with a stubbed Firebase:
   delete on own vs forged comment, picker painting, aggregate math, payload shape,

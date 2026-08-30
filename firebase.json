@@ -1,0 +1,11 @@
+{
+  "functions": {
+    "source": "functions",
+    "runtime": "nodejs20",
+    "ignore": ["node_modules", ".git", "*.log"],
+    "params": {
+      "ANILIST_CLIENT_ID": "49806",
+      "ANILIST_REDIRECT_URI": "https://otaku-news.github.io/account.html"
+    }
+  }
+}

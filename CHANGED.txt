@@ -1,0 +1,38 @@
+ONLY THE FILES I TOUCHED — nothing else needs replacing
+========================================================
+
+REPLACE these 3 in your site (GitHub Pages repo):
+  anilist.js   the AniList connect flow (was: implicit grant → broken.
+               now: authorization code grant + Firebase proxy + legacy support)
+  account.js   owner setup gained the Client Secret field; the connect
+               return trip is now handled async
+  index.html   ONE block added in <head> — search for OTAKU_ANILIST_TOKEN_PROXY.
+               Everything else in the file is byte-for-byte identical, so if
+               you prefer not to replace the whole file, just paste this block
+               after your <link> tags in <head>:
+
+  <script>
+  window.OTAKU_ANILIST_TOKEN_PROXY = "https://us-central1-otaku-news-1062.cloudfunctions.net/anilistToken";
+  </script>
+
+ADD these (new, they don't exist in your repo yet) — put them at the repo root
+EXCEPT the functions/ folder which goes in a folder named "functions":
+  firebase.json    has your client ID 49806 already filled in
+  .firebaserc      pins project otaku-news-1062
+  functions/index.js       the Cloud Function (code → token exchange)
+  functions/package.json
+
+OPTIONAL:
+  README.txt   updated build notes (documentation only — skip if you don't care)
+
+NOT TOUCHED (stay exactly as they are in your repo):
+  anime.html  browse.html  account.html  404.html  style.css  account.css
+  script.js  features.js  firebase-init.js  lightbox.js  assets/
+
+THEN (terminal, from the unzipped folder):
+  cd functions && npm install && cd ..
+  firebase functions:secrets:set ANILIST_CLIENT_SECRET   ← paste your secret
+  firebase deploy --only functions
+
+  → check the printed function URL matches the OTAKU_ANILIST_TOKEN_PROXY
+    line in index.html (region prefix can differ from us-central1).

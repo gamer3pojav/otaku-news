@@ -1,0 +1,10 @@
+{
+  "name": "otaku-news-functions",
+  "private": true,
+  "description": "AniList token-exchange proxy for otaku-news.github.io",
+  "main": "index.js",
+  "engines": { "node": "20" },
+  "dependencies": {
+    "firebase-functions": "^5.0.0"
+  }
+}
