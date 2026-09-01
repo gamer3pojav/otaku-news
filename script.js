@@ -38,10 +38,15 @@
   // ---------- Theme toggle ----------
   const themeBtn = document.getElementById('theme-toggle');
   const root = document.documentElement;
+  const themes = ['light', 'dark', 'cyberpunk'];
 
   function applyTheme(theme) {
+    if (!themes.includes(theme)) theme = 'light';
     root.setAttribute('data-theme', theme);
     try { localStorage.setItem('otaku-theme', theme); } catch (e) {}
+    if (themeBtn) {
+      themeBtn.title = 'Theme: ' + theme.charAt(0).toUpperCase() + theme.slice(1) + ' (Click to change)';
+    }
   }
 
   // Load saved preference, else follow system
@@ -49,9 +54,13 @@
   try { saved = localStorage.getItem('otaku-theme'); } catch (e) {}
   applyTheme(saved || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
 
-  themeBtn.addEventListener('click', () => {
-    applyTheme(root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
-  });
+  if (themeBtn) {
+    themeBtn.addEventListener('click', () => {
+      const current = root.getAttribute('data-theme') || 'light';
+      const nextIdx = (themes.indexOf(current) + 1) % themes.length;
+      applyTheme(themes[nextIdx]);
+    });
+  }
 
   function subscribe(e) {
     e.preventDefault();
