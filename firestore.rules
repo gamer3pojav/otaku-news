@@ -1,0 +1,46 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Usernames map for email-to-username auth bridge
+    match /usernames/{username} {
+      allow read: if true;
+      allow create, update: if request.auth != null;
+    }
+
+    // Watchlists per user uid
+    match /watchlists/{uid} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // User profiles
+    match /users/{uid} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // Anime scores / ratings aggregate
+    match /scores/{animeId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    // Comments subcollection per anime
+    match /comments/{animeId}/items/{commentId} {
+      allow read: if true;
+      allow create: if request.auth != null 
+                    && request.resource.data.uid == request.auth.uid
+                    && request.resource.data.text is string
+                    && request.resource.data.text.size() > 0
+                    && request.resource.data.text.size() <= 2000;
+      allow delete: if request.auth != null 
+                    && (resource.data.uid == request.auth.uid || request.auth.token.email == 'rashmiranjanmalik104@gmail.com');
+    }
+  }
+}
