@@ -1,0 +1,77 @@
+<svg viewBox="0 0 500 500" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="bgGrad" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ef4444"/>
+      <stop offset="70%" stop-color="#dc2626"/>
+      <stop offset="100%" stop-color="#991b1b"/>
+    </radialGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000" flood-opacity="0.5"/>
+    </filter>
+  </defs>
+
+  <circle cx="250" cy="250" r="235" fill="url(#bgGrad)" stroke="#f43f5e" stroke-width="8" filter="url(#shadow)"/>
+
+  <!-- LLOYD FRONTERA (Background Right) -->
+  <g id="lloyd" transform="translate(140, 40)">
+    <path d="M180 30 C200 40, 240 60, 260 100 C270 120, 275 150, 270 180 C240 130, 200 100, 160 80 Z" fill="#5c2c16"/>
+    <path d="M120 70 C150 60, 220 70, 250 110 C270 140, 260 190, 240 220 C220 250, 170 260, 140 240 C110 220, 100 150, 120 70 Z" fill="#fbcfe8" opacity="0.15"/>
+    <path d="M140 130 Q190 120 230 150 Q250 190 220 230 Q180 250 140 220 Z" fill="#18181b" stroke="#000" stroke-width="4"/>
+    <path d="M145 140 Q190 135 225 160 Q215 175 145 160 Z" fill="#ffffff"/>
+    <path d="M150 215 Q190 235 220 215 Q215 200 150 200 Z" fill="#ffffff"/>
+    <path d="M170 180 Q190 170 210 180 Q200 210 170 180 Z" fill="#ef4444"/>
+    <path d="M150 90 Q170 70 210 95 Q180 120 150 90 Z" fill="#ffffff" stroke="#000" stroke-width="3"/>
+    <circle cx="180" cy="93" r="8" fill="#000"/>
+    <path d="M150 75 Q175 60 215 80" stroke="#000" stroke-width="5" fill="none" stroke-linecap="round"/>
+  </g>
+
+  <!-- KENJAKU (Foreground Center) -->
+  <g id="kenjaku" transform="translate(40, 30)">
+    <path d="M30 220 L10 190 L35 170 L15 140 L45 130 L25 100 L60 100 L45 70 L90 80 L80 50 L130 70 L140 40 L180 70 L220 40 L230 70 L280 50 L270 80 L315 70 L300 100 L335 100 L315 130 L345 140 L325 170 L350 190 L330 220 Z" fill="#09090b" filter="url(#shadow)"/>
+
+    <path d="M100 280 L180 400 L260 280 L290 350 L250 420 L110 420 L70 350 Z" fill="#1e3a8a"/>
+    <path d="M110 260 L180 340 L250 260 Z" fill="#ffffff" opacity="0.9"/>
+    <path d="M140 260 L180 310 L220 260 Z" fill="#0f172a"/>
+
+    <path d="M100 150 C100 110, 130 90, 180 90 C230 90, 260 110, 260 150 C260 210, 240 280, 180 300 C120 280, 100 210, 100 150 Z" fill="#fcd34d"/>
+    <path d="M130 115 Q180 105 230 115" stroke="#78350f" stroke-width="3" fill="none" stroke-dasharray="6,4"/>
+    <line x1="150" y1="108" x2="148" y2="116" stroke="#78350f" stroke-width="2"/>
+    <line x1="180" y1="106" x2="180" y2="115" stroke="#78350f" stroke-width="2"/>
+    <line x1="210" y1="108" x2="212" y2="116" stroke="#78350f" stroke-width="2"/>
+
+    <!-- AMERICAN FLAG BANDANA -->
+    <g id="bandana">
+      <path d="M100 150 C100 110, 130 90, 180 90 V170 H100 V150 Z" fill="#1e3a8a"/>
+      <g fill="#ffffff" transform="scale(0.7) translate(50, 40)">
+        <polygon points="110,105 112,110 117,110 113,113 115,118 110,115 105,118 107,113 103,110 108,110" transform="translate(10, 30)"/>
+        <polygon points="110,105 112,110 117,110 113,113 115,118 110,115 105,118 107,113 103,110 108,110" transform="translate(40, 20)"/>
+        <polygon points="110,105 112,110 117,110 113,113 115,118 110,115 105,118 107,113 103,110 108,110" transform="translate(25, 50)"/>
+        <polygon points="110,105 112,110 117,110 113,113 115,118 110,115 105,118 107,113 103,110 108,110" transform="translate(55, 45)"/>
+        <polygon points="110,105 112,110 117,110 113,113 115,118 110,115 105,118 107,113 103,110 108,110" transform="translate(15, 75)"/>
+      </g>
+
+      <path d="M180 90 C230 90, 260 110, 260 150 V170 H180 V90 Z" fill="#dc2626"/>
+      <rect x="180" y="102" width="80" height="12" fill="#ffffff"/>
+      <rect x="180" y="126" width="80" height="12" fill="#ffffff"/>
+      <rect x="180" y="150" width="80" height="14" fill="#ffffff"/>
+
+      <path d="M165 90 L180 60 L195 90 Z" fill="#dc2626"/>
+      <circle cx="180" cy="85" r="8" fill="#b91c1c"/>
+      <path d="M170 70 L140 45 L155 40 L175 60 Z" fill="#dc2626"/>
+      <path d="M190 70 L210 45 L225 50 L200 65 Z" fill="#ffffff"/>
+    </g>
+
+    <!-- Sunglasses -->
+    <g id="sunglasses">
+      <path d="M115 160 Q145 155 175 165 L170 195 Q145 205 120 190 Z" fill="#09090b" stroke="#f43f5e" stroke-width="2.5"/>
+      <path d="M125 167 Q145 163 165 170 L162 182 Q145 188 128 180 Z" fill="#1e293b" opacity="0.6"/>
+      <path d="M185 165 Q215 155 245 160 L240 190 Q215 205 190 195 Z" fill="#09090b" stroke="#f43f5e" stroke-width="2.5"/>
+      <path d="M195 170 Q215 163 235 167 L232 180 Q215 188 198 182 Z" fill="#1e293b" opacity="0.6"/>
+      <rect x="173" y="160" width="14" height="6" fill="#09090b" stroke="#f43f5e" stroke-width="1.5" rx="2"/>
+    </g>
+
+    <path d="M180 200 L175 225 L185 228" fill="none" stroke="#b45309" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M150 250 Q180 265 210 248" fill="none" stroke="#78350f" stroke-width="4" stroke-linecap="round"/>
+    <line x1="168" y1="254" x2="192" y2="254" stroke="#f43f5e" stroke-width="2" stroke-linecap="round"/>
+  </g>
+</svg>

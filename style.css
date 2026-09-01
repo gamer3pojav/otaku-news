@@ -1010,34 +1010,40 @@ footer { padding: 24px; font-size: 11.5px; }
 }
 
 /* ---------- Image logo mark ---------- */
-.logo .mark { overflow: hidden; padding: 0; background: none; box-shadow: 0 2px 8px rgba(224,69,90,.35); }
+.logo .mark { overflow: hidden; padding: 0; background: none; box-shadow: 0 2px 8px rgba(224,69,90,.35); cursor: zoom-in; transition: transform .2s ease, box-shadow .2s ease; }
+.logo .mark:hover { transform: scale(1.06); box-shadow: 0 4px 16px rgba(224,69,90,.55); }
 .logo .mark img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .logo .mark::after { border-radius: 8px; }
 
 /* ---------- Logo lightbox ---------- */
-.logo .mark { cursor: zoom-in; }
 .logo-lightbox {
   position: fixed; inset: 0; z-index: 300;
-  background: rgba(10,10,14,.82);
-  backdrop-filter: blur(8px);
+  background: rgba(10,10,14,.88);
+  backdrop-filter: blur(12px);
   display: grid; place-items: center;
   opacity: 0; pointer-events: none;
-  transition: opacity .25s ease;
+  transition: opacity .3s ease;
   cursor: zoom-out;
 }
 .logo-lightbox.open { opacity: 1; pointer-events: auto; }
-.logo-lightbox img {
-  width: min(420px, 82vw); border-radius: 24px;
-  border: 2px solid rgba(255,255,255,.18);
-  box-shadow: 0 30px 80px rgba(224,69,90,.35);
-  transform: scale(.92);
-  transition: transform .3s cubic-bezier(.22,1,.36,1);
+.logo-lightbox .lb-logo-svg {
+  transform: scale(0.8) translateY(20px);
+  opacity: 0;
+  transition: transform .4s cubic-bezier(0.34, 1.56, 0.64, 1), opacity .3s ease;
 }
-.logo-lightbox.open img { transform: scale(1); }
+.logo-lightbox.open .lb-logo-svg {
+  transform: scale(1) translateY(0);
+  opacity: 1;
+}
 .logo-lightbox .lb-caption {
   position: absolute; bottom: 34px; left: 0; right: 0;
   text-align: center; color: #e8e8ee;
   font-family: var(--mono); font-size: 12px; letter-spacing: 2px;
+  opacity: 0; transform: translateY(10px);
+  transition: opacity .3s ease .1s, transform .3s ease .1s;
+}
+.logo-lightbox.open .lb-caption {
+  opacity: 1; transform: translateY(0);
 }
 
 /* ---------- Trailer thumbnail (redirects to YouTube) ---------- */
