@@ -216,34 +216,6 @@
   window.__otakuAfterComment = function (info) {
     if (!info.tenths || !AL() || !AL().isConnected()) return;
     if (autoPushOn()) pushRating(info.animeId, info.tenths, { silent: true });
-    var tooShort = !AL().canPushReview(info.text);
-    var box = document.querySelector('.cm-box[data-cm-id="' + (window.CSS && CSS.escape ? CSS.escape(String(info.animeId)) : info.animeId) + '"]');
-    if (!box || box.querySelector('.ani-offer')) return;
-    var o = document.createElement('div');
-    o.className = 'ani-offer';
-    o.style.cssText = 'display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-top:11px;padding:10px 12px;border:1px dashed var(--line);border-radius:10px;font-size:12px;color:var(--ink-soft)';
-    o.innerHTML = '<span>Also send <b>' + esc(info.title || 'this') + '</b> — ' + (info.tenths / 20).toFixed(1) + '★ — to your AniList list?</span>' +
-      '<button type="button" class="ac-btn" data-act="yes">Push score</button>' +
-      (tooShort ? '<span class="hint" style="font-family:var(--mono);font-size:10.5px;color:var(--ink-faint)">' +
-        'review text needs ' + AL().reviewLimits.minBody + ' chars on AniList, so your comment is not sent as one</span>'
-        : '<button type="button" class="ac-btn" data-act="review">Push score + review</button>');
-    box.appendChild(o);
-    o.addEventListener('click', function (e) {
-      var b = e.target.closest('button'); if (!b) return;
-      if (b.dataset.act === 'yes') {
-        pushRating(info.animeId, info.tenths, {});
-        o.remove();
-      } else if (b.dataset.act === 'review') {
-        b.disabled = true; b.textContent = 'Pushing…';
-        aniUser().then(function (v) {
-          return AL().pushReview(info.animeId, info.tenths, info.text.slice(0, 120), info.text,
-            { scoreFormat: (v && v.scoreFormat) || 'POINT_10_DECIMAL' });
-        }).then(function (r) {
-          toast('Review published on AniList' + (r && r.SaveReview && r.SaveReview.siteUrl ? '' : ''));
-          o.remove();
-        }).catch(function (err) { b.disabled = false; b.textContent = 'Push score + review'; toast('Review failed — ' + err.message, true); });
-      }
-    });
   };
 
   /* ------------------------------------------------------------ account menu */
