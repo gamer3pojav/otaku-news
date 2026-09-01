@@ -464,8 +464,7 @@ window.otakuSafeAvatar = function (v) {
       box.querySelector('.rating-mine').innerHTML = cur
         ? '<span class="rm-label">Your rating</span>' +
           (window.otakuStars ? window.otakuStars(mine || 0, true, mine) : '') +
-          (mine ? '<em>' + (mine / 20).toFixed(1) + '</em>' : '') +
-          ' <button type="button" class="ot-ani-push">Push to AniList</button>'
+          (mine ? '<em>' + (mine / 20).toFixed(1) + '</em>' : '')
         : '<span class="rm-label">Log in to rate</span>';
     } catch (e) {
       box.querySelector('.ra-count').textContent = 'ratings unavailable';
