@@ -55,7 +55,10 @@
   // AniList applications: https://anilist.co/settings/developer — the redirect URL
   // there must match wherever this site is hosted. Left empty, the connect flow is
   // disabled and ratings simply stay local instead of showing a broken button.
-  function clientId() { try { return localStorage.getItem(LS_CLIENT) || ""; } catch (e) { return ""; } }
+  // AniList linking is turned off site-wide (owner's choice). Forcing this to ""
+  // makes authUrl()/isConfigured() collapse to "off" everywhere downstream —
+  // nothing else in this file needed to change.
+  function clientId() { return ""; }
   function setClient(id) {
     id = (id || "").trim();
     try { id ? localStorage.setItem(LS_CLIENT, id) : localStorage.removeItem(LS_CLIENT); } catch (e) {}
@@ -69,7 +72,9 @@
     try { s ? localStorage.setItem(LS_SECRET, s) : localStorage.removeItem(LS_SECRET); } catch (e) {}
   }
 
-  function token() { try { return localStorage.getItem(LS_TOKEN) || ""; } catch (e) { return ""; } }
+  // Same reasoning as clientId() above — always report "no token" so any
+  // previously-saved token in this browser is simply ignored, not deleted.
+  function token() { return ""; }
   function setToken(t) {
     try { t ? localStorage.setItem(LS_TOKEN, t) : localStorage.removeItem(LS_TOKEN); } catch (e) {}
     if (!t) { try { localStorage.removeItem(LS_USER); } catch (e) {} }
@@ -423,4 +428,30 @@
       );
     }
   };
+
+  // Belt-and-suspenders: hide the AniList card on the account page even if
+  // account.js's own rendering doesn't fully react to isConfigured()===false.
+  // Matches on the "AniList" heading text plus a nearby giveaway phrase, so it
+  // can't accidentally hide the unrelated "AniList" link field under Social
+  // media (that row has no "Connect AniList" button or score-sync copy).
+  function hideAniListCard() {
+    try {
+      var heads = document.querySelectorAll("h1,h2,h3,h4,legend,strong,b");
+      for (var i = 0; i < heads.length; i++) {
+        var h = heads[i];
+        if ((h.textContent || "").trim() !== "AniList") continue;
+        var card = h.closest("section,.card,[class*='card']") || h.parentElement;
+        if (card && /Connect AniList|list score|スコア同期/i.test(card.textContent || "")) {
+          card.style.display = "none";
+        }
+      }
+    } catch (e) {}
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", hideAniListCard);
+  } else {
+    hideAniListCard();
+  }
+  setTimeout(hideAniListCard, 300);
+  setTimeout(hideAniListCard, 1200);
 })();
