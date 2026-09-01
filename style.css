@@ -112,19 +112,25 @@
   [data-theme="synthwave"] .featured-card, [data-theme="synthwave"] .review-card, [data-theme="synthwave"] .news-item { border: 1px solid #01cdfe44; box-shadow: 0 0 12px rgba(1,205,254,0.15); }
   html, body { transition: background .25s, color .25s; }
 
-  /* ---------- 60fps performance layer ---------- */
-  /* Scroll-reveal: compositor-only (opacity + transform) */
+  /* ---------- 60fps performance & ultra-fluid motion layer ---------- */
+  /* Scroll-reveal: velvety smooth spring curve */
   .reveal {
-    opacity: 0; transform: translateY(22px);
-    transition: opacity .55s cubic-bezier(.22,1,.36,1), transform .55s cubic-bezier(.22,1,.36,1);
+    opacity: 0; transform: translateY(28px) scale(0.98);
+    transition: opacity .65s cubic-bezier(0.16, 1, 0.3, 1), transform .65s cubic-bezier(0.16, 1, 0.3, 1);
     will-change: opacity, transform;
   }
   .reveal.in { opacity: 1; transform: none; will-change: auto; }
-  /* Stagger children */
-  .reveal.in > * { }
 
-  /* GPU promotion for animated hero elements */
-  header h1, .sub { backface-visibility: hidden; }
+  /* Fluid card hover lifts & shadows */
+  .featured-card, .review-card, .news-item, .rank-item, .live-card {
+    transition: transform .35s cubic-bezier(0.16, 1, 0.3, 1), box-shadow .35s cubic-bezier(0.16, 1, 0.3, 1), border-color .3s ease, background .3s ease;
+  }
+  .featured-card:hover, .review-card:hover, .live-card:hover {
+    transform: translateY(-4px);
+  }
+
+  /* GPU promotion for animated elements */
+  header h1, .sub, .logo, .nav-cta, .auth-btn { backface-visibility: hidden; will-change: transform; }
 
   /* Respect users who prefer no motion */
   @media (prefers-reduced-motion: reduce) {

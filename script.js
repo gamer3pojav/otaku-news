@@ -3,6 +3,10 @@
    All the JavaScript (NOT Java, bro) 😤
    ============================================ */
 
+if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+window.scrollTo(0, 0);
+window.addEventListener('load', () => window.scrollTo(0, 0));
+
 // ---------- 60fps scroll reveals (IntersectionObserver = zero scroll-handler jank) ----------
   const revealTargets = document.querySelectorAll(
     '.featured-card, .section-head, .news-item, .review-card:not(.live-card), .rank-item, .newsletter, .live-controls, .live-status'
@@ -218,7 +222,7 @@ function creatorOf(m) {
       liveGrid.innerHTML = shows.map(m => {
         const title = m.title.english || m.title.romaji;
         const studio = (m.studios.nodes[0] || {}).name || '—';
-        const score = m.averageScore ? (m.averageScore / 10).toFixed(1) : '—';
+        const score = m.averageScore ? (m.averageScore / 10).toFixed(2) : '—';
         const next = m.nextAiringEpisode;
         const badge = next ? untilText(next.timeUntilAiring) : null;
         const genres = (m.genres || []).slice(0, 3);
@@ -501,7 +505,7 @@ document.querySelectorAll('.news-item[data-expand]').forEach(item => {
   function card(m) {
     const title = m.title.english || m.title.romaji;
     const studio = (m.studios.nodes[0] || {}).name || '—';
-    const score = m.averageScore ? (m.averageScore / 10).toFixed(1) : '—';
+    const score = m.averageScore ? (m.averageScore / 10).toFixed(2) : '—';
     const bits = [
       (m.format || '').replace(/_/g, ' '),
       m.episodes ? m.episodes + ' eps' : null,
@@ -782,7 +786,7 @@ document.querySelectorAll('.news-item[data-expand]').forEach(item => {
             value = '★ ' + exact.toFixed(2);
             width = exact * 10;
           } else {
-            value = m.averageScore ? '★ ' + (m.averageScore / 10).toFixed(1) : '—';
+            value = m.averageScore ? '★ ' + (m.averageScore / 10).toFixed(2) : '—';
             width = m.averageScore || 0;
           }
         }
@@ -1022,7 +1026,7 @@ document.querySelectorAll('.news-item[data-expand]').forEach(item => {
       return `<a class="sd-item" href="anime.html?id=${m.id}">
         <img src="${m.coverImage.medium}" alt="" loading="lazy">
         <div><div class="sd-name">${escS(t)}</div>
-        <div class="sd-meta">${[m.format, m.seasonYear, m.averageScore ? '★ ' + (m.averageScore / 10).toFixed(1) : null].filter(Boolean).join(' · ')}</div></div>
+        <div class="sd-meta">${[m.format, m.seasonYear, m.averageScore ? '★ ' + (m.averageScore / 10).toFixed(2) : null].filter(Boolean).join(' · ')}</div></div>
         ${tag ? `<span class="sd-tag">${tag}</span>` : ''}
       </a>`;
     }).join('');
@@ -1151,7 +1155,7 @@ document.querySelectorAll('.news-item[data-expand]').forEach(item => {
     const meta = document.getElementById('pick-meta');
     if (meta && m.averageScore) {
       meta.insertAdjacentHTML('afterbegin',
-        `<span class="genre-tag">★ ${(m.averageScore / 10).toFixed(1)}</span><span class="genre-tag">${Math.round(m.popularity / 1000)}k readers</span>`);
+        `<span class="genre-tag">★ ${(m.averageScore / 10).toFixed(2)}</span><span class="genre-tag">${Math.round(m.popularity / 1000)}k readers</span>`);
     }
   })
   .catch(() => {});
