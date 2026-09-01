@@ -206,7 +206,17 @@ window.otakuSafeAvatar = function (v) {
 // COMMENTS — shared/public, stored in Firestore
 // ============================================
 (function () {
-  function user() { try { return localStorage.getItem('otaku-session'); } catch (e) { return null; } }
+  function user() { 
+    try { 
+      const u = localStorage.getItem('otaku-session'); 
+      if (u) return u;
+      const fb = window.otakuFirebase;
+      if (fb && fb.auth && fb.auth.currentUser) {
+        return fb.auth.currentUser.displayName || fb.auth.currentUser.email;
+      }
+      return null;
+    } catch (e) { return null; } 
+  }
   const escX = s => (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 
   // ---- ratings are stored as "tenths" (10,20,…,100) ----
@@ -265,7 +275,7 @@ window.otakuSafeAvatar = function (v) {
       }
     }
     return comments.map(c => {
-      const mine = !!(c.uid && fb && fb.auth.currentUser && c.uid === fb.auth.currentUser.uid);
+      const mine = !!(c.uid && fb && fb.auth && fb.auth.currentUser && c.uid === fb.auth.currentUser.uid);
       const del = (mine || canModerate()) && c.id
         ? '<button class="cm-del" type="button" title="Delete your comment">✕</button>' : '';
       const pic = window.otakuSafeAvatar(pics[c.uid]);
@@ -300,7 +310,7 @@ window.otakuSafeAvatar = function (v) {
     if (!box) return;
     const fbc = await window.__otakuWaitFB();
     if (!fbc) {
-      box.querySelector('.cm-list').innerHTML = '<p class="cm-empty">Could not reach Firebase — check that <code>firebase-init.js</code> loaded.</p>';
+      box.querySelector('.cm-list').innerHTML = '<p class="cm-empty">Could not reach Firebase — check connection.</p>';
       return;
     }
     try {
@@ -342,7 +352,7 @@ window.otakuSafeAvatar = function (v) {
     const item = btn.closest('.cm-item'), box = btn.closest('.cm-box');
     const fb = window.otakuFirebase;
     if (!item || !box || !fb) return;
-    const cur = fb.auth.currentUser;
+    const cur = fb.auth && fb.auth.currentUser;
     if (!cur || cur.uid !== item.dataset.cmUid) {
       if (!canModerate()) return;                  // not yours, not a mod: no-op
     }
@@ -369,7 +379,14 @@ window.otakuSafeAvatar = function (v) {
     const input = form.querySelector('input');
     const text = input.value.trim();
     const uname = user();
-    if (!text || !uname || !window.otakuFirebase) return;
+    if (!text) return;
+    if (!uname || !window.otakuFirebase || !window.otakuFirebase.auth || !window.otakuFirebase.auth.currentUser) {
+      alert('Please log in to post comments.');
+      const login = document.getElementById('login-btn');
+      if (login) login.click();
+      else location.href = 'index.html?auth=login';
+      return;
+    }
     // read the picker BEFORE the refresh replaces the form, or this is null
     const sel = form.querySelector('.ot-star-input');
     const tenths = sel && sel.value ? Number(sel.value) : 0;
@@ -396,7 +413,7 @@ window.otakuSafeAvatar = function (v) {
       input.value = '';
       await window.otakuCommentsRefresh(id);
     } catch (e2) {
-      // leave their typed comment in the box so nothing gets lost
+      alert('Could not post comment: ' + (e2.message || e2));
     } finally {
       btn.disabled = false;
     }
