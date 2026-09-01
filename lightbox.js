@@ -38,10 +38,29 @@
       }
     } catch(e) {}
   }
+
+  function applyCustomSiteName() {
+    try {
+      var customName = localStorage.getItem('otaku-site-name');
+      var customJp = localStorage.getItem('otaku-site-jp');
+      if (customName) {
+        document.querySelectorAll('.logo .word').forEach(function(el) {
+          var jpSpan = el.querySelector('.jp');
+          var jpText = jpSpan ? jpSpan.outerHTML : (customJp ? '<span class="jp">' + customJp + '</span>' : '');
+          el.innerHTML = customName + (customJp ? '<span class="jp">' + customJp + '</span>' : jpText);
+        });
+      }
+    } catch(e) {}
+  }
+
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', applyCustomLogo);
+    document.addEventListener('DOMContentLoaded', function() {
+      applyCustomLogo();
+      applyCustomSiteName();
+    });
   } else {
     applyCustomLogo();
+    applyCustomSiteName();
   }
 
   function openLb() {
