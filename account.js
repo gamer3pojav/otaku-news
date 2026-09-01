@@ -271,21 +271,9 @@
         if (p && p.avatar) window.otakuAvatarPaint($('am-av'), p.avatar);
       }).catch(function () {});
     }
-    var conn = AL() && AL().isConnected();
-    var who = '';
-    if (conn && AL().decodeToken) {
-      var dd = AL().decodeToken();
-      if (dd) who = dd.expired ? ' · expired' : (dd.daysLeft != null ? ' · ' + dd.daysLeft + 'd' : '');
-    }
-    var ap = autoPushOn();
     body.innerHTML =
       '<button type="button" data-act="profile">Profile &amp; settings</button>' +
       '<button type="button" data-act="watchlist">My watchlist</button>' +
-      '<div class="am-sep"></div>' +
-      '<button type="button" data-act="connect">' + (conn ? 'AniList' : 'Link AniList token') +
-        '<span class="am-flag ' + (conn ? 'on' : '') + '">' + (conn ? 'linked' + who
-          : (AL().isConfigured() ? 'not linked' : 'site not set up')) + '</span></button>' +
-      '<button type="button" data-act="autopush">Auto-push my scores<span class="am-flag ' + (ap ? 'on' : '') + '">' + (ap ? 'on' : 'off') + '</span></button>' +
       '<div class="am-sep"></div>' +
       '<button type="button" data-act="logout">Log out</button>';
   }
@@ -307,8 +295,6 @@
         }
         else if (act === 'profile') location.href = 'account.html';
         else if (act === 'watchlist') { var av = $('user-avatar'); if (av) av.click(); }
-        else if (act === 'connect') doConnect();
-        else if (act === 'autopush') { setAutoPush(!autoPushOn()); toast('Auto-push ' + (autoPushOn() ? 'on' : 'off')); }
         else if (act === 'logout') {
           if (FB()) FB().logOut();
           try { localStorage.removeItem('otaku-session'); } catch (e) {}
@@ -614,11 +600,6 @@
           '</div>' +
         '</div>' +
 
-        '<div class="acct-card" id="ani-card">' +
-          '<h2>AniList</h2><p class="sub">スコア同期 — your stars can write to your AniList list score</p>' +
-          '<div id="ani-body">checking…</div>' +
-        '</div>' +
-
         '<div class="acct-card">' +
           '<h2>Your data</h2><p class="sub">データ — where each field lives</p>' +
           '<div id="acct-data"></div>' +
@@ -697,9 +678,7 @@
         }).then(function () { btn.disabled = false; });
       };
 
-      renderAni();
       renderData();
-      window.__otakuRenderAni = renderAni;      // callable from acquireToken above
 
       function renderAni() {
         var box = $('ani-body');

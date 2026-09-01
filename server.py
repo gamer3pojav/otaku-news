@@ -307,6 +307,6 @@ class Handler(SimpleHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    server = ThreadingHTTPServer(("0.0.0.0", 8000), Handler)
-    print("Otaku News server on http://0.0.0.0:8000")
+    server = ThreadingHTTPServer(("0.0.0.0", 3000), Handler)
+    print("Otaku News server on http://0.0.0.0:3000")
     server.serve_forever()

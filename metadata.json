@@ -1,0 +1,6 @@
+{
+  "name": "Otaku News",
+  "description": "Anime News & Reviews - Live news, airing schedules, rankings, and complete anime/manga library",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

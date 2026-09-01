@@ -1,9 +1,12 @@
 {
-  "name": "otaku-news-functions",
+  "name": "otaku-news",
   "private": true,
-  "description": "AniList token-exchange proxy for otaku-news.github.io",
-  "main": "index.js",
-  "engines": { "node": "20" },
+  "description": "Otaku News — Anime News & Reviews",
+  "scripts": {
+    "dev": "python3 server.py",
+    "start": "python3 server.py",
+    "build": "echo 'No build required'"
+  },
   "dependencies": {
     "firebase-functions": "^5.0.0"
   }
