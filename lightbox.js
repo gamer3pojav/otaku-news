@@ -7,8 +7,26 @@
   lb.className = 'logo-lightbox';
   lb.innerHTML =
     '<div class="lb-logo-svg"><img id="lb-logo-img" src="logo.svg" alt="Otaku News Logo" style="width:260px;height:260px;object-fit:cover;border-radius:24px;box-shadow:0 12px 40px rgba(0,0,0,0.6);margin-bottom:12px;" /></div>' +
-    '<div class="lb-caption">KENJAKU · EDITOR-IN-CHIEF — LLOYD FRONTERA · HEAD OF SCHEMES</div>';
+    '<div class="lb-caption">KENJAKU · EDITOR-IN-CHIEF — LLOYD FRONTERA · HEAD OF SCHEMES</div>' +
+    '<div style="margin-top:16px;text-align:center;"><label for="logo-file-input" style="background:#334155;color:white;padding:8px 16px;border-radius:6px;font-size:13px;cursor:pointer;display:inline-block;">Upload logo.jpg</label><input type="file" id="logo-file-input" accept="image/*" style="display:none"></div>';
   document.body.appendChild(lb);
+
+  var fileInput = document.getElementById('logo-file-input');
+  if (fileInput) {
+    fileInput.addEventListener('change', function(e) {
+      var file = e.target.files[0];
+      if (!file) return;
+      var reader = new FileReader();
+      reader.onload = function(evt) {
+        var dataUrl = evt.target.result;
+        try {
+          localStorage.setItem('otaku-custom-logo', dataUrl);
+        } catch(err) {}
+        applyCustomLogo();
+      };
+      reader.readAsDataURL(file);
+    });
+  }
 
   function applyCustomLogo() {
     try {
