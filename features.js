@@ -78,6 +78,27 @@ window.__otakuWaitAuth = function () {
   // anything saved elsewhere. Local entries always win on conflict.
   if (window.otakuFirebase) {
     window.otakuFirebase.onAuthChange(async (uname) => {
+      if (uname) {
+        try { localStorage.setItem('otaku-session', uname); } catch (e) {}
+      } else {
+        try { localStorage.removeItem('otaku-session'); } catch (e) {}
+      }
+      document.querySelectorAll('.cm-box').forEach(box => {
+        const wrap = box.querySelector('.cm-form-wrap');
+        if (wrap) {
+          wrap.innerHTML = user()
+            ? `<form class="cm-form">
+                 <div class="cm-form-stars">${starsHTML(0, true)}<span class="cm-form-hint">rate it — optional</span></div>
+                 <input type="text" maxlength="500" placeholder="Share your take…" required><button type="submit">Post</button></form>`
+            : `<p class="cm-login">Log in to comment.</p>`;
+        }
+        const id = box.dataset.cmId;
+        if (id && window.__otakuRatingRefresh) window.__otakuRatingRefresh(id);
+      });
+      document.querySelectorAll('.rating-block').forEach(b => {
+        if (b.dataset.ratingId && window.__otakuRatingRefresh) window.__otakuRatingRefresh(b.dataset.ratingId);
+      });
+
       if (!uname) return;
       const uid = currentUid();
       if (!uid) return;
@@ -297,17 +318,20 @@ window.otakuSafeAvatar = function (v) {
       <div class="detail-section-label">コメント — Comments (<span class="cm-count">…</span>)</div>
       ${window.otakuRatingBox ? window.otakuRatingBox(animeId, mediaTitle) : ''}
       <div class="cm-list"><p class="cm-empty">Loading comments…</p></div>
-      ${user()
-        ? `<form class="cm-form">
-             <div class="cm-form-stars">${starsHTML(0, true)}<span class="cm-form-hint">rate it — optional</span></div>
-             <input type="text" maxlength="500" placeholder="Share your take…" required><button type="submit">Post</button></form>`
-        : `<p class="cm-login">Log in to comment.</p>`}
+      <div class="cm-form-wrap">
+        ${user()
+          ? `<form class="cm-form">
+               <div class="cm-form-stars">${starsHTML(0, true)}<span class="cm-form-hint">rate it — optional</span></div>
+               <input type="text" maxlength="500" placeholder="Share your take…" required><button type="submit">Post</button></form>`
+          : `<p class="cm-login">Log in to comment.</p>`}
+      </div>
     </div>`;
   };
 
   window.otakuCommentsRefresh = async function (animeId) {
     const box = document.querySelector('.cm-box[data-cm-id="' + CSS.escape(String(animeId)) + '"]');
     if (!box) return;
+    if (window.__otakuRatingRefresh) window.__otakuRatingRefresh(animeId);
     const fbc = await window.__otakuWaitFB();
     if (!fbc) {
       box.querySelector('.cm-list').innerHTML = '<p class="cm-empty">Could not reach Firebase — check connection.</p>';
