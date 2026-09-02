@@ -6,7 +6,7 @@
   var lb = document.createElement('div');
   lb.className = 'logo-lightbox';
   lb.innerHTML =
-    '<div class="lb-logo-svg"><img id="lb-logo-img" src="logo.svg" alt="Otaku News Logo" style="width:260px;height:260px;object-fit:cover;border-radius:24px;box-shadow:0 12px 40px rgba(0,0,0,0.6);margin-bottom:12px;" /></div>' +
+    '<div class="lb-logo-svg"><img id="lb-logo-img" src="logo.jpg" alt="Otaku News Logo" style="width:260px;height:260px;object-fit:cover;border-radius:24px;box-shadow:0 12px 40px rgba(0,0,0,0.6);margin-bottom:12px;" /></div>' +
     '<div class="lb-caption">KENJAKU · EDITOR-IN-CHIEF — LLOYD FRONTERA · HEAD OF SCHEMES</div>';
   document.body.appendChild(lb);
 
