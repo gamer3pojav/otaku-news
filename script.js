@@ -929,7 +929,7 @@ document.querySelectorAll('.news-item[data-expand]').forEach(item => {
       { source: 'Crunchyroll News', url: 'https://cr-news-api-service.prd.crunchyrollsvc.com/v1/en-US/rss' }
     ];
     return Promise.allSettled(FEEDS.map(f =>
-      fetch('https://api.rss2json.com/v1/api.json?rss_url=' + ''https://api.rss2json.com/v1/api.json?rss_url='t=' + Date.now() + ' + encodeURIComponent(f.url))
+      fetch('https://api.rss2json.com/v1/api.json?rss_url=' + encodeURIComponent(f.url) + '&t=' + Date.now())
         .then(r => { if (!r.ok) throw 0; return r.json(); })
         .then(d => (d.items || []).map(it => ({
           title: it.title,
